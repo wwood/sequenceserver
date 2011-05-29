@@ -27,7 +27,10 @@ module SequenceServer
 
     # errors if any while executing command
     attr_reader   :error
-
+    
+    # parsed hits (Blast::Hit objects), only available when run_to_blast_archive! is used, not run!
+    attr_reader :hits
+    
     # Initialize a new blast search.
     # ---
     # Arguments(optional):
@@ -79,7 +82,7 @@ module SequenceServer
     #   b.errors => "blast error output"
     #
     #   # set qfile
-    #   b.qfile  = 'query1.seq'    
+    #   b.qfile  = 'query1.seq'
     #
     #   b.run!   => true
     #   b.reuslt => "blast output"
@@ -142,6 +145,56 @@ module SequenceServer
       (success? ? "success : " : "fail : ") + @command
     end
 
+    def run_to_blast_archive!
+      Tempfile.open('seqserve_formatter') do |blast_output|
+      # Add -outfmt 11 to list of options
+        @options ||= ''
+        @options += "-outfmt 11 -out #{blast_output.path}" unless @options.match(/-outfmt 11/)
+
+        # Run the blast
+        run!
+        return @success unless @success
+
+        # Parse using blast_formatter to @result with text output as normal
+        blast_formatter_command = "blast_formatter -archive #{blast_output.path}"
+        Open3.popen3(blast_formatter_command) do |stdin, stdout, stderr|
+          @result = stdout.readlines # convert to string?
+          @blast_formatter1_error  = stderr.readlines
+        end
+
+        # Parse using blast_formatter to @hits with custom output
+        blast_formatter_command = "blast_formatter -archive #{blast_output.path} -outfmt '6 qstart qend bitscore sseqid'"
+        hit_result = nil
+        Open3.popen3(blast_formatter_command) do |stdin, stdout, stderr|
+          hit_result = stdout.readlines # convert to string?
+          @blast_formatter2_error  = stderr.readlines
+        end
+
+        # Parse the hits into a sensible file structure
+        @hits = []
+        if hit_result != '' #if there was any hits
+          hit_result.each do |line|
+            splits = line.strip.split("\t")
+            unless splits.length == 4
+              #TODO: a better kind of exception here
+              raise Exception, "Unexpected blast_formatter2 output parsing error, on line `#{line}'"
+            end
+            h = Hit.new
+            h.qstart = splits[0].to_i
+            h.qend = splits[1].to_i
+            h.bitscore = splits[2].to_f
+            h.sseqid = splits[3]
+            @hits.push h
+          end
+        end
+      end
+    end
+
+    # A class to represent a BLAST hit
+    class Hit
+      attr_accessor :qstart, :qend, :bitscore, :sseqid
+    end
+
     class << self
       # shortcut method to run blast against a query file
       def blast_file(method, db, qfile, options = nil)
@@ -154,6 +207,12 @@ module SequenceServer
       def blast_string(method, db, qstring, options = nil)
         b = Blast.new(method, db, :qstring => qstring, :options => options)
         b.run!
+        b
+      end
+
+      def blast_string_via_blast_archive(method, db, qstring, options = nil)
+        b = Blast.new(method, db, :qstring => qstring, :options => options)
+        b.run_to_blast_archive!
         b
       end
     end

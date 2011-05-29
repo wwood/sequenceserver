@@ -150,6 +150,7 @@
 			</div>
 		</form>
 		<div class="result prepend-top" id="result">
+		  <% unless @hits.empty? %><img src='<%= @blast_graphic_path %>'><% end %>
 			<pre class='smalltext'>
 	                <%= @blast %>
 			</pre>

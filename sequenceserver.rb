@@ -8,6 +8,7 @@ end
 
 require 'rubygems'
 require 'sinatra/base'
+require 'bio-graphics'
 require 'yaml'
 require 'logger'
 require 'lib/helpers'
@@ -209,13 +210,16 @@ module SequenceServer
       raise ArgumentError, "Invalid advanced options" unless advanced_opts =~ /\A[a-z0-9\-_\. ']*\Z/i
       raise ArgumentError, "using -out is not allowed" if advanced_opts =~ /-out/i
 
-      blast = Blast.blast_string(method, dbs, sequence, advanced_opts)
+      blast = Blast.blast_string_via_blast_archive(method, dbs, sequence, advanced_opts)
 
       # log the command that was run
+      #TODO: change this so it logs all of the commands including blast_formatter
       settings.log.info('Ran: ' + blast.command) if settings.logging
 
+      @blast_graphic_path = create_blast_graphic(blast.hits)
       @blast = format_blast_results(blast.result, dbs)
 
+      @hits = blast.hits
       erb :search
     end
 
@@ -298,6 +302,27 @@ module SequenceServer
       retrieval_text       = all_retrievable_ids.empty? ? '' : "<p><a href='#{link_to_fasta_of_all}'>FASTA of #{all_retrievable_ids.length} retrievable hit(s)</a></p>"
 
       retrieval_text + '<pre><code>' + formatted_result + '</pre></code>'  # should this be somehow put in a div?
+    end
+    
+    def create_blast_graphic(hits)
+      #TODO: delete blast graphics that are old (and therefore presumably no longer needed)
+      #TODO: properly detect the length of the query sequence so the panel can be the correct width in na/aa letters
+      #TODO: make bio-graphics optional, given the difficulty of getting it to install properly. At configuration time, perhaps?
+      #TODO: make the blast clickable. This is hard I think because of the way bio-graphics outputs this imagemap. Is there some programmatic way to grab the string?
+      #TODO: handle multi-fasta requests
+      #TODO: colour hits in the graphic by bitscore
+      #TODO: add testing for this method
+      
+      my_panel = Bio::Graphics::Panel.new(500, {:width => 1000})
+      generic_track = my_panel.add_track('BLAST hits')
+      hits.each do |hit|
+        settings.log.debug "Adding feature #{hit.inspect} to track"
+        generic_track.add_feature(Bio::Feature.new(hit.sseqid, "#{hit.qstart}..#{hit.qend}"),:label => hit.sseqid)
+      end
+      web_img_path = "blasthits#{(Math.rand*1024*1024).round}.png"
+      img_path = File.join('public',web_img_path)
+      my_panel.draw(img_path)
+      return web_img_path
     end
 
     at_exit { run! if $!.nil? and run? }
