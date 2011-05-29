@@ -312,6 +312,8 @@ module SequenceServer
       #TODO: handle multi-fasta requests
       #TODO: colour hits in the graphic by bitscore
       #TODO: add testing for this method
+      #TODO: make the graphic somehow private? Do we just rely on obscurity here?
+      #TODO: put the graphics into a better folder than public/ - maybe public/blast_graphics ?
       
       my_panel = Bio::Graphics::Panel.new(500, {:width => 1000})
       generic_track = my_panel.add_track('BLAST hits')
