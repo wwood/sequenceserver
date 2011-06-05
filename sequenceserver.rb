@@ -16,7 +16,6 @@ require 'lib/sequencehelpers.rb'
 require 'lib/sinatralikeloggerformatter.rb'
 require 'customisation'
 
-
 # Helper module - initialize the blast server.
 module SequenceServer
   class App < Sinatra::Base
@@ -26,7 +25,7 @@ module SequenceServer
 
     # Basic configuration settings for app.
     configure do
-      # enable some builtin goodies
+    # enable some builtin goodies
       enable :session, :logging
 
       # base setting; Sinatra can then figure :root, :public, and :views itself
@@ -39,7 +38,7 @@ module SequenceServer
       log.formatter = SinatraLikeLogFormatter.new()
 
       set :environment, :development
-      #set :environment, :production
+    #set :environment, :production
     end
 
     # Local, app configuration settings derived from config.yml.
@@ -52,8 +51,8 @@ module SequenceServer
     # Sane defaults are assumed in the absence of a config.yml, or a
     # corresponding entry.
     configure do
-      # store the settings hash from config.yml; further configuration values
-      # are derived from it
+    # store the settings hash from config.yml; further configuration values
+    # are derived from it
       set :config,      {}
 
       # absolute path to the blast binaries
@@ -83,7 +82,7 @@ module SequenceServer
     # or database. These tables should be populated during app initialization
     # by scanning bin, and database directories.
     configure do
-      # blast methods (executables) and their corresponding absolute path
+    # blast methods (executables) and their corresponding absolute path
       set :binaries,  {}
 
       # list of sorted blast databases grouped by databse type:
@@ -116,7 +115,7 @@ module SequenceServer
         init
         super
       end
-      
+
       # Initializes the blast server : executables, database. Exit if blast
       # executables, and databses can not be found. Logs the result if logging
       # has been enabled.
@@ -144,7 +143,7 @@ module SequenceServer
       rescue IOError => error
         log.fatal("Fail: #{error}")
         exit
-      end
+        end
 
       # Parse config.yml, and return the resulting hash.
       #
@@ -157,7 +156,7 @@ module SequenceServer
       rescue Errno::ENOENT
         log.warn("config.yml not found - will assume default settings")
         return {}
-      end
+        end
     end
 
     get '/' do
@@ -171,7 +170,7 @@ module SequenceServer
 
       # evaluate empty sequence as nil, otherwise as fasta
       sequence = sequence.empty? ? nil : to_fasta(sequence)
-      
+
       # can not proceed if one of these is missing
       raise ArgumentError unless sequence and db_type and method
       settings.log.info("requested #{method} against #{db_type.to_s} database")
@@ -200,9 +199,9 @@ module SequenceServer
 
       method = settings.binaries[ method ]
       settings.log.debug('settings.databases:   ' + settings.databases.inspect)
-      databases = params['db'][db_type].map{|index| 
+      databases = params['db'][db_type].map{|index|
         settings.databases[db_type][index.to_i].name
-        } 
+      }
       advanced_opts = params['advanced']
 
       raise ArgumentError, "Invalid advanced options" unless advanced_opts =~ /\A[a-z0-9\-_\. ']*\Z/i
@@ -224,25 +223,27 @@ module SequenceServer
       sequence_type.to_s
     end
 
-    #get '/get_sequence/:sequenceids/:retreival_databases' do # multiple seqs separated by whitespace... all other chars exist in identifiers
+    #get '/get_sequence/:sequenceids/:retreival_databases' do # multiple seqs
+    # separated by whitespace... all other chars exist in identifiers
     # I have the feeling you need to spat for multiple dbs... that sucks.
     get '/get_sequence/:*/:*' do
-      params[ :sequenceids], params[ :retrieval_databases] = params["splat"] 
-      sequenceids = params[ :sequenceids].split(/\s/).uniq  # in a multi-blast query some may have been found multiply
+      params[ :sequenceids], params[ :retrieval_databases] = params["splat"]
+      sequenceids = params[ :sequenceids].split(/\s/).uniq  # in a multi-blast
+      # query some may have been found multiply
       settings.log.info('Getting: ' + sequenceids.join(' ') + ' for ' + request.ip.to_s)
 
-      # the results do not indicate which database a hit is from. 
+      # the results do not indicate which database a hit is from.
       # Thus if several databases were used for blasting, we must check them all
       # if it works, refactor with "inject" or "collect"?
       found_sequences     = ''
-      retrieval_databases = params[ :retrieval_databases ].split(/\s/)  
+      retrieval_databases = params[ :retrieval_databases ].split(/\s/)
 
       raise ArgumentError, 'Nothing in params[ :retrieval_databases]. session info is lost?'  if retrieval_databases.nil?
 
       retrieval_databases.each do |database|     # we need to populate this session variable from the erb.
         begin
           found_sequences += sequence_from_blastdb(sequenceids, database)
-        rescue 
+        rescue
           settings.log.debug('None of the following sequences: '+ sequenceids.to_s + ' found in '+ database)
         end
       end
@@ -265,7 +266,7 @@ module SequenceServer
     def to_fasta(sequence)
       sequence.lstrip!
       if sequence[0,1] != '>'
-        ip   = request.ip.to_s 
+        ip   = request.ip.to_s
         time = Time.now.strftime("%y%m%d-%H:%M:%S")
         sequence.insert(0, ">Submitted_By_#{ip}_at_#{time}\n")
       end
@@ -273,7 +274,7 @@ module SequenceServer
     end
 
     def format_blast_results(result, databases)
-      raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if !result.class == String 
+      raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if !result.class == String
       raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if result.empty?
 
       formatted_result    = ''
@@ -283,40 +284,59 @@ module SequenceServer
         if line.match(/^>/) # If line to possibly replace
           formatted_result += construct_sequence_hyperlink_line(line, databases)
         else
-          formatted_result += line
+        formatted_result += line
         end
       end
 
-      link_to_fasta_of_all = "/get_sequence/:#{@all_retrievable_ids.join(' ')}/:#{string_of_used_databases}" #dbs must be sep by ' '
+      link_to_fasta_of_all = "/get_sequence/:#{@all_retrievable_ids.join(' ')}/:#{string_of_used_databases}"
+      # #dbs must be sep by ' '
       retrieval_text       = @all_retrievable_ids.empty? ? '' : "<p><a href='#{link_to_fasta_of_all}'>FASTA of #{@all_retrievable_ids.length} retrievable hit(s)</a></p>"
 
       retrieval_text + '<pre><code>' + formatted_result + '</pre></code>'  # should this be somehow put in a div?
     end
-    
+
     def construct_sequence_hyperlink_line(line, databases)
       matches = line.match(/^>(.+)/)
       sequence_id = matches[1]
-      
+
       link = nil
-      
+
       # If a custom sequence hyperlink method has been defined,
       # use that.
-      if self.respond_to?(:construct_custom_sequence_hyperlink)
-        settings.log.debug("Using custom hyperlink creator with sequence #{sequence_id}")
-        link = construct_custom_sequence_hyperlink(sequence_id)
-      else
-        settings.log.debug("Using standard hyperlink creator with sequence `#{sequence_id}'")
-        link = construct_standard_sequence_hyperlink(sequence_id, databases)
+      options = {
+        :sequence_id => sequence_id,
+        :databases => databases
+      }
+
+      # First precedence: construct the whole line to be customised
+      if self.respond_to?(:construct_custom_sequence_hyperlinking_line)
+        settings.log.debug("Using custom hyperlinking line creator with sequence #{options.inspect}")
+        link_line = construct_custom_sequence_hyperlinking_line(options)
+        unless link_line.nil?
+          return link_line
+        end
       end
-      
+
+      # If we have reached here, custom construction of the
+      # whole line either wasn't defined, or returned nil
+      # (indicating failure)
+      if self.respond_to?(:construct_custom_sequence_hyperlink)
+        settings.log.debug("Using custom hyperlink creator with sequence #{options.inspect}")
+        link = construct_custom_sequence_hyperlink(options)
+      else
+        settings.log.debug("Using standard hyperlink creator with sequence `#{options.inspect}'")
+        link = construct_standard_sequence_hyperlink(options)
+      end
+
       # Return the BLAST output line with the link in it
       if link.nil?
         settings.log.debug('No link added link for: `'+ sequence_id +'\'')
-        return line
+      return line
       else
         settings.log.debug('Added link for: `'+ sequence_id +'\''+ link)
         return "<a href='#{link}'>#{sequence_id}</a>"
       end
+
     end
 
     at_exit { run! if $!.nil? and run? }
