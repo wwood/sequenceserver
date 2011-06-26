@@ -1,10 +1,6 @@
 # sequenceserver.rb
 
-unless RUBY_VERSION == "1.8.7"
-  puts "Apologies, #{$1} requires ruby 1.8.7. You are running #{RUBY_VERSION}."
-  puts "You may want to set up Ruby Version Manager."
-  exit
-end
+$LOAD_PATH.unshift(File.dirname(__FILE__))
 
 require 'rubygems'
 require 'sinatra/base'
@@ -14,14 +10,14 @@ require 'lib/helpers'
 require 'lib/blast.rb'
 require 'lib/sequencehelpers.rb'
 require 'lib/sinatralikeloggerformatter.rb'
-
-
+require 'customisation'
 
 # Helper module - initialize the blast server.
 module SequenceServer
   class App < Sinatra::Base
     include Helpers
     include SequenceHelpers
+    include SequenceServer::Customisation
 
     # Basic configuration settings for app.
     configure do
@@ -90,14 +86,8 @@ module SequenceServer
       set :databases, {}
     end
 
-    configure(:development) do
+    configure :development do
       log.level     = Logger::DEBUG
-      begin
-        require 'sinatra/reloader'
-        register Sinatra::Reloader
-      rescue LoadError
-        puts("** install sinatra-reloader gem for automatic reloading of code during development **\n\n")
-      end
     end
 
     configure(:production) do
@@ -111,11 +101,51 @@ module SequenceServer
     end
 
     class << self
+      # Run SequenceServer as a self-hosted server.
+      #
+      # By default SequenceServer uses Thin, Mongrel or WEBrick (in that
+      # order). This can be configured by setting the 'server' option.
       def run!(options={})
+        set options
+
+        # perform SequenceServer initializations
+        puts "\n== Initializing SequenceServer..."
         init
-        super
+
+        # find out the what server to host SequenceServer with
+        handler      = detect_rack_handler
+        handler_name = handler.name.gsub(/.*::/, '')
+
+        puts
+        log.info("Using #{handler_name} web server.")
+
+        if handler_name == 'WEBrick'
+          puts "\n== We recommend using Thin web server for better performance."
+          puts "== To install Thin: [sudo] gem install thin"
+        end
+
+        url = "http://#{bind}:#{port}"
+        puts "\n== Launched SequenceServer at: #{url}"
+        puts "== Press CTRL + C to quit."
+        handler.run(self, :Host => bind, :Port => port, :Logger => Logger.new('/dev/null')) do |server|
+          [:INT, :TERM].each { |sig| trap(sig) { quit!(server, handler) } }
+          set :running, true
+
+          # for Thin
+          server.silent = true if handler_name == 'Thin'
+        end
+      rescue Errno::EADDRINUSE, RuntimeError => e
+        puts "\n== Failed to start SequenceServer."
+        puts "== Is SequenceServer already running at: #{url}"
       end
-      
+
+      # Stop SequenceServer.
+      def quit!(server, handler_name)
+        # Use Thin's hard #stop! if available, otherwise just #stop.
+        server.respond_to?(:stop!) ? server.stop! : server.stop
+        puts "\n== Thank you for using SequenceServer :)." unless handler_name =~/cgi/i
+      end
+
       # Initializes the blast server : executables, database. Exit if blast
       # executables, and databses can not be found. Logs the result if logging
       # has been enabled.
@@ -142,6 +172,10 @@ module SequenceServer
         end
       rescue IOError => error
         log.fatal("Fail: #{error}")
+        exit
+      rescue ArgumentError => error
+        log.fatal("Error in config.yml: #{error}")
+        puts "YAML is white space sensitive. Is your config.yml properly indented?"
         exit
       end
 
@@ -176,7 +210,17 @@ module SequenceServer
 
       # evaluate empty sequence as nil, otherwise as fasta
       sequence = sequence.empty? ? nil : to_fasta(sequence)
-      
+
+      if request.xhr?
+        return type_of_sequences(sequence).to_s
+      end
+
+      # Raise ArgumentError if there is no database selected
+      if db_type_param.nil?
+        raise ArgumentError, "No BLAST database selected"
+      end
+      db_type = db_type_param.first.first
+
       # can not proceed if one of these is missing
       raise ArgumentError unless sequence and db_type and method
       settings.log.info("requested #{method} against #{db_type.to_s} database")
@@ -187,6 +231,7 @@ module SequenceServer
 
       # check if input_fasta is compatible with the selected blast method
       sequence_type       = type_of_sequences(sequence)
+      settings.log.debug('sequence: ' + sequence)
       settings.log.debug('input seq type: ' + sequence_type.to_s)
       settings.log.debug('blast db type:  ' + db_type)
       settings.log.debug('blast method:   ' + method)
@@ -203,47 +248,46 @@ module SequenceServer
       end
 
       method = settings.binaries[ method ]
-      dbs    = params['db'][db_type].map{|index| settings.databases[db_type][index.to_i].name}.join(' ')
+      settings.log.debug('settings.databases:   ' + settings.databases.inspect)
+      databases = params['db'][db_type].map{|index|
+        settings.databases[db_type][index.to_i].name
+      }
       advanced_opts = params['advanced']
 
       raise ArgumentError, "Invalid advanced options" unless advanced_opts =~ /\A[a-z0-9\-_\. ']*\Z/i
       raise ArgumentError, "using -out is not allowed" if advanced_opts =~ /-out/i
 
-      blast = Blast.blast_string(method, dbs, sequence, advanced_opts)
+      blast = Blast.blast_string(method, databases.join(' '), sequence, advanced_opts)
 
       # log the command that was run
       settings.log.info('Ran: ' + blast.command) if settings.logging
 
-      @blast = format_blast_results(blast.result, dbs)
+      @blast = format_blast_results(blast.result, databases)
 
       erb :search
     end
 
-    post '/ajax' do
-      sequence   = to_fasta(params[:sequence])
-      sequence_type       = type_of_sequences(sequence)
-      sequence_type.to_s
-    end
-
-    #get '/get_sequence/:sequenceids/:retreival_databases' do # multiple seqs separated by whitespace... all other chars exist in identifiers
+    #get '/get_sequence/:sequenceids/:retreival_databases' do # multiple seqs
+    # separated by whitespace... all other chars exist in identifiers
     # I have the feeling you need to spat for multiple dbs... that sucks.
     get '/get_sequence/:*/:*' do
-      params[ :sequenceids], params[ :retrieval_databases] = params["splat"] 
-      sequenceids = params[ :sequenceids].split(/\s/).uniq  # in a multi-blast query some may have been found multiply
+      params[ :sequenceids], params[ :retrieval_databases] = params["splat"]
+      sequenceids = params[ :sequenceids].split(/\s/).uniq  # in a multi-blast
+      # query some may have been found multiply
       settings.log.info('Getting: ' + sequenceids.join(' ') + ' for ' + request.ip.to_s)
 
-      # the results do not indicate which database a hit is from. 
+      # the results do not indicate which database a hit is from.
       # Thus if several databases were used for blasting, we must check them all
       # if it works, refactor with "inject" or "collect"?
       found_sequences     = ''
-      retrieval_databases = params[ :retrieval_databases ].split(/\s/)  
+      retrieval_databases = params[ :retrieval_databases ].split(/\s/)
 
       raise ArgumentError, 'Nothing in params[ :retrieval_databases]. session info is lost?'  if retrieval_databases.nil?
 
       retrieval_databases.each do |database|     # we need to populate this session variable from the erb.
         begin
           found_sequences += sequence_from_blastdb(sequenceids, database)
-        rescue 
+        rescue
           settings.log.debug('None of the following sequences: '+ sequenceids.to_s + ' found in '+ database)
         end
       end
@@ -266,38 +310,77 @@ module SequenceServer
     def to_fasta(sequence)
       sequence.lstrip!
       if sequence[0,1] != '>'
-        ip   = request.ip.to_s 
+        ip   = request.ip.to_s
         time = Time.now.strftime("%y%m%d-%H:%M:%S")
         sequence.insert(0, ">Submitted_By_#{ip}_at_#{time}\n")
       end
       return sequence
     end
 
-    def format_blast_results(result, string_of_used_databases)
-      raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if !result.class == String 
+    def format_blast_results(result, databases)
+      raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if !result.class == String
       raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if result.empty?
 
       formatted_result    = ''
-      all_retrievable_ids = []
+      @all_retrievable_ids = []
+      string_of_used_databases = databases.join(' ')
       result.each do |line|
-        if line.match(/^>\S/)  #if there is a space right after the '>', makeblastdb was run without -parse_seqids
-          complete_id = line[/^>*(\S+)\s*.*/, 1]  # get id part
-          id = complete_id.include?('|') ? complete_id.split('|')[1] : complete_id.split('|')[0]
-          all_retrievable_ids.push(id)
-          settings.log.debug('Added link for: '+ id)
-          link_to_fasta = "/get_sequence/:#{id}/:#{string_of_used_databases}" # several dbs... separate by ' '
-
-          replacement_text_with_link  = "<a href='#{link_to_fasta}' title='Full #{id} FASTA sequence'>#{id}</a>"
-          formatted_result += line.gsub(id, replacement_text_with_link)
+        if line.match(/^>/) # If line to possibly replace
+          formatted_result += construct_sequence_hyperlink_line(line, databases)
         else
           formatted_result += line
         end
       end
 
-      link_to_fasta_of_all = "/get_sequence/:#{all_retrievable_ids.join(' ')}/:#{string_of_used_databases}" #dbs must be sep by ' '
-      retrieval_text       = all_retrievable_ids.empty? ? '' : "<p><a href='#{link_to_fasta_of_all}'>FASTA of #{all_retrievable_ids.length} retrievable hit(s)</a></p>"
+      link_to_fasta_of_all = "/get_sequence/:#{@all_retrievable_ids.join(' ')}/:#{string_of_used_databases}"
+      # #dbs must be sep by ' '
+      retrieval_text       = @all_retrievable_ids.empty? ? '' : "<p><a href='#{link_to_fasta_of_all}'>FASTA of #{@all_retrievable_ids.length} retrievable hit(s)</a></p>"
 
       retrieval_text + '<pre><code>' + formatted_result + '</pre></code>'  # should this be somehow put in a div?
+    end
+
+    def construct_sequence_hyperlink_line(line, databases)
+      matches = line.match(/^>(.+)/)
+      sequence_id = matches[1]
+
+      link = nil
+
+      # If a custom sequence hyperlink method has been defined,
+      # use that.
+      options = {
+        :sequence_id => sequence_id,
+        :databases => databases
+      }
+
+      # First precedence: construct the whole line to be customised
+      if self.respond_to?(:construct_custom_sequence_hyperlinking_line)
+        settings.log.debug("Using custom hyperlinking line creator with sequence #{options.inspect}")
+        link_line = construct_custom_sequence_hyperlinking_line(options)
+        unless link_line.nil?
+          return link_line
+        end
+      end
+
+      # If we have reached here, custom construction of the
+      # whole line either wasn't defined, or returned nil
+      # (indicating failure)
+      if self.respond_to?(:construct_custom_sequence_hyperlink)
+        settings.log.debug("Using custom hyperlink creator with sequence #{options.inspect}")
+        link = construct_custom_sequence_hyperlink(options)
+      else
+        settings.log.debug("Using standard hyperlink creator with sequence `#{options.inspect}'")
+        link = construct_standard_sequence_hyperlink(options)
+      end
+
+      # Return the BLAST output line with the link in it
+      if link.nil?
+        settings.log.debug('No link added link for: `'+ sequence_id +'\'')
+        return line
+      else
+        settings.log.debug('Added link for: `'+ sequence_id +'\''+ link)
+        return "<a href='#{link}'>#{sequence_id}</a>"
+      end
+
     end
 
     at_exit { run! if $!.nil? and run? }

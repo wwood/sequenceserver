@@ -152,6 +152,14 @@ padding: 0;
 	width: 78%;
 }
 
+.greytext {
+  color: #A9A9A9;
+}
+
+.pointer {
+	cursor:pointer;
+}
+
 .advanced pre {
 	display: none;
 }

@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 # copyright yannick . wurm at unil . ch
 # Finds files, reads first char. if its '>', read 500 lines. Guess sequence type, ask user for title to format as blast database.
 
@@ -5,10 +6,12 @@ require 'rubygems'
 require 'ptools' # for File.binary?(file)
 require 'find'
 require 'logger'
+require 'sequenceserver'
 require 'lib/helpers.rb'
 require 'lib/sequencehelpers.rb'
 
 LOG = Logger.new(STDOUT)
+
 
 class DatabaseFormatter
     include SequenceServer
@@ -17,16 +20,17 @@ class DatabaseFormatter
     include SequenceHelpers
     
     def init
-        LOG.info("initializing")
-        ['blastdbcmd', 'makeblastdb'].each do |command|
-            LOG.warn("Cannot execute: '#{command}") unless command?(command)
-        end
+      @app = SequenceServer::App
+      @app.config = @app.parse_config
+      @app.binaries = @app.scan_blast_executables(@app.bin).freeze
     end
 
     def format_databases(db_path)
+        formatted_dbs = %x|#{@app.binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%f" 2>&1|.split("\n")
         commands = []
         Find.find(db_path) do |file|
             next if File.directory?(file)
+            next if formatted_dbs.include?(file)
             unless File.binary?(file)
 
                 if probably_fasta?(file)
@@ -57,6 +61,10 @@ class DatabaseFormatter
             end
         end
         LOG.info("Will now create DBs")
+        if commands.empty?
+          puts "", "#{db_path} does not contain any unformatted database."
+          exit
+        end
         commands.each do |command|
 			LOG.info("Will run: " + command.to_s)
             system(command)
@@ -67,7 +75,7 @@ class DatabaseFormatter
 
     def db_table(db_path)
         LOG.info("Summary of formatted blast databases:\n")
-        output = %x| blastdbcmd -recursive -list #{db_path} -list_outfmt "%p %f %t" &2>1 |
+        output = %x|#{@app.binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%p %f %t" &2>1 |
         LOG.info(output)
     end
 
@@ -107,7 +115,7 @@ class DatabaseFormatter
 
     def make_db_command(file,type, title)
         LOG.info("Will make #{type.to_s} database from #{file} with #{title}")
-        command = %|makeblastdb -in #{file} -dbtype #{ type.to_s.slice(0,4)} -title "#{title}" -parse_seqids|
+        command = %|#{@app.binaries['makeblastdb']} -in #{file} -dbtype #{ type.to_s.slice(0,4)} -title "#{title}" -parse_seqids|
         LOG.info("Returning: #{command}")
         return(command)
     end
