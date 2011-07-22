@@ -212,7 +212,7 @@ module SequenceServer
       sequence = sequence.empty? ? nil : to_fasta(sequence)
 
       if request.xhr?
-        return type_of_sequences(sequence).to_s
+        return (sequence && type_of_sequences(sequence)).to_s
       end
 
       # Raise ArgumentError if there is no database selected
@@ -378,7 +378,7 @@ module SequenceServer
         return line
       else
         settings.log.debug('Added link for: `'+ sequence_id +'\''+ link)
-        return "<a href='#{link}'>#{sequence_id}</a>"
+        return "><a href='#{link}'>#{sequence_id}</a> "
       end
 
     end
