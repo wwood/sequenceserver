@@ -201,12 +201,6 @@ module SequenceServer
       method        = params['method']
       db_type_param = params['db']
       sequence      = params[:sequence]
-      
-      # Raise ArgumentError if there is no database selected
-      if db_type_param.nil?
-        raise ArgumentError, "No BLAST database selected"
-      end
-      db_type = db_type_param.first.first
 
       # evaluate empty sequence as nil, otherwise as fasta
       sequence = sequence.empty? ? nil : to_fasta(sequence)
