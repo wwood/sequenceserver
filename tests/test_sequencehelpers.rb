@@ -1,10 +1,17 @@
 #!/usr/bin/env ruby 
 # test_ssequencehelpers.rb
 
+require 'sequenceserver'
 require 'lib/sequencehelpers'
 require 'test/unit'
 require 'lib/helpers'
 
+class DummyLog
+  def debug(*args); end
+  def info(*args); end
+  def warn(*args); end
+  def error(*args); end
+end
 
 class Tester < Test::Unit::TestCase
   include SequenceServer::SequenceHelpers
@@ -65,7 +72,8 @@ class Tester < Test::Unit::TestCase
   end
 end
 
-class Tester < Test::Unit::TestCase
+class SystemHelpersTester < Test::Unit::TestCase
+  def log; DummyLog.new; end
   include SequenceServer::Helpers::SystemHelpers
   
   def test_version_number_agreement
@@ -76,8 +84,25 @@ class Tester < Test::Unit::TestCase
     assert_equal true, version_agrees?('2.2.25+', '3.0.1+')
   end
   
-  def test_test_blast_program_version_number
+  def test_blast_program_version_number
     assert_equal true, blast_program_version_number_agrees?('makeblastdb','2.2.25+')
     assert_equal '2.2.25+', blast_program_version_number_agrees?('makeblastdb','2.2.30+')
   end
 end
+
+class AppTester < Test::Unit::TestCase
+  def test_process_advanced_blast_options
+    # dirty hack, required to work around Sinatra's overriden `new` method that
+    # may return instance of any Rack class
+    app = SequenceServer::App.allocate
+    app.send(:initialize)
+
+    assert_nothing_raised {app.validate_advanced_parameters('')}
+    assert_nothing_raised {app.validate_advanced_parameters('-word_size 5')}
+    assert_raise(ArgumentError, 'security advanced option parser'){app.validate_advanced_parameters('-word_size 5; rm -rf /')}
+    assert_raise(ArgumentError, 'conflicting advanced option'){app.validate_advanced_parameters('-db roar')}
+  end
+end
+
+
+
