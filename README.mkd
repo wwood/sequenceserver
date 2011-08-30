@@ -131,9 +131,9 @@ Our [issues tracker][13] logs development activities. [feature][14] indicates wh
 
 Current contributors: 
 
- * [Yannick Wurm][16] is an evolutionary biologist using genomics tools to study the evolution of ant 
- societies (eg: [antgenomes.org][23], [fire ant genome][24], [competing fire ant queens][25]). He will be at 
- [Queen Mary University London][26] from January 2012. 
+ * [Yannick Wurm][16] is an evolutionary biologist using genomics tools to study the evolution of ant
+ societies (eg: [antgenomes.org][23], [fire ant genome][24], [competing fire ant queens][25]). He will be at
+ [Queen Mary University London][26] from January 2012.
  * [Anurag Priyam][17]
  * [Cedric Wurm][18]
  * [Ben J Woodcroft][19] is a PhD student in [Melbourne][28] studying protein trafficking in apicomplexan parasites including malaria
