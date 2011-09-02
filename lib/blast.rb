@@ -169,6 +169,33 @@ module SequenceServer
       @error  = stderr.readlines
       end
     end
+    
+    def convert_blast_archive_to_hit_objects(blast_formatter_path)
+      blast_formatter_command = "#{blast_formatter_path} -archive #{blast_archive_tempfile.path} -outfmt '6 qseqid qlen qstart qend evalue sseqid slen'"
+      
+      # execute command and capture both stdout, and stderr
+      Open3.popen3(blast_formatter_command) do |stdin, stdout, stderr|
+      @result = stdout.readlines # convert to string?
+      @error  = stderr.readlines
+      end
+      
+      # Convert the result into an array of hit objects
+      @hits = []
+      @result.each do |line|
+        qseqid,qlen,qstart,qend,evalue,sseqid,slen = line.chomp.split("\t")
+        h = Hit.new
+        h.qseqid = qseqid
+        h.qlen = qlen.to_i
+        h.qstart = qstart.to_i
+        h.qend = qend.to_i
+        h.evalue = evalue.to_f
+        h.sseqid = sseqid
+        h.slen = slen.to_i 
+        @hits.push h
+      end
+
+      return @hits
+    end
 
     class << self
       # shortcut method to run blast against a query file
@@ -185,7 +212,7 @@ module SequenceServer
         b
       end
 
-      # shortcut method to run blast with a query string and return a
+      # shortcut method to run blast with a query file and return a
       # blast archive, which can then be further processed into other useful
       # output forms (e.g. HTML, GFF). If it ran successfully, the blast archive
       # is a Tempfile accessible as an instance variable of the returned
@@ -194,6 +221,20 @@ module SequenceServer
         b = Blast.new(method, db, :qstring => qstring, :options => options)
         b.run_to_blast_archive!
         b
+      end
+    end
+    
+    # A class to represent a BLAST hit
+    class Hit
+      @@instance_variables = [:qseqid, :qlen, :qstart, :qend, :evalue, :sseqid, :slen]
+      @@instance_variables.each do |i|
+        attr_accessor i
+      end
+      
+      def ==(another)
+        @@instance_variables.each do |i|
+          return false unless send(i) == another.send(i)
+        end
       end
     end
   end

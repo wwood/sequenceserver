@@ -76,3 +76,79 @@ class SystemHelperTester < Test::Unit::TestCase
   end
 end
 
+class BlastTester < Test::Unit::TestCase
+  include SequenceServer
+  
+  # Where the test data is stored. Might be changed in future or
+  # made more available to other test classes
+  def protein_db_dir
+    "#{File.join(File.dirname(__FILE__), 'database', 'protein')}"
+  end
+  
+  def setup
+    # Create blast databases if they don't already exist
+    Dir.chdir(protein_db_dir) do
+      unless File.exist?('Sinvicta2-2-3.prot.subset.fasta.psi')
+        `makeblastdb -in 'Sinvicta2-2-3.prot.subset.fasta' -parse_seqids`
+      end
+    end
+  end
+  
+  def test_convert_blast_archive_to_hit_objects
+    # qseqid qlen qstart qend evalue sseqid slen
+    # PF14_0448 272 3 35  0.32  SI2.2.0_03512 1122
+    # PF14_0448 272 223 252 1.6 SI2.2.0_02890 69
+    # PF14_0448 272 225 253 2.8 SI2.2.0_08297 67
+    new_hit_object = lambda do |qseqid, qlen, qstart, qend, evalue, sseqid, slen|
+      h1 = Blast::Hit.new
+      h1.qseqid = qseqid
+      h1.qlen = qlen
+      h1.qstart = qstart
+      h1.qend = qend
+      h1.evalue = evalue
+      h1.sseqid = sseqid
+      h1.slen = slen
+      h1
+    end
+    
+    hits = [
+      new_hit_object.call('PF14_0448',272,3,35,0.32,'SI2.2.0_03512',1122),
+      new_hit_object.call('PF14_0448',272,223,252,1.6,'SI2.2.0_02890',69),
+      new_hit_object.call('PF14_0448',272,225,253,2.8,'SI2.2.0_08297',67),
+    ]
+    query = <<END
+>PF14_0448 40S ribosomal protein S2, putative
+MEDRGGFSRGFGRGVRGTRGRGGRGARGRGRGSAEDDLKNWVPVTKLGRLVKEGKIVSIEEIYLHSLPIKEYQIIDYFFQ
+PNECSHPLKDDVVKIMPVQKQTRAGQRTRFKAFVAIGDGNGHCGLGVKCAKEVATAIRGAIISAKLSLIPVRRGYWGNKI
+GDPHTVPMKVSGKCGSVRIRLVPAPRGTQIVGAPTTKKMLNFAGIKDCFSSSCGKTKTKGNFLRAIFNALSKTYGYLTPD
+LWKVTNFDKSPYEEWSDFLETYQNLKGIKGTV
+END
+    b = Blast.blast_string_to_blast_archive('blastp', File.join(protein_db_dir, 'Sinvicta2-2-3.prot.subset.fasta'), query)
+    actual_hits = b.convert_blast_archive_to_hit_objects('blast_formatter')
+    assert_equal hits.length, actual_hits.length, "Length of array difference - #{hits} expected, #{actual_hits} found"
+    hits.each_with_index do |hit, i|
+      assert_equal hit, actual_hits[i]
+    end
+    
+    q2 = <<END
+MHPTVLDATGYTLLLSNFITFAILLWKGYKRKRKCPFYVLSLSDIFSATLMAVVLLVNHI
+EAGIRLNYNWQNNTGGDMPNHTWTIQDKRFPFLQMHLREVDDLDVTLTCGMKDIFMHYGM
+LLAALANAFTSLLTFAVQCNFNAAAIKRRCANVMKSSLKNAQLELPTDAEVKCLSELKST
+SRERRIDAKVKSNVTQRIEKXXXXXXXXXXXXXXXXXXXXXXXXQLFVLSLAIYFLPILLSSILQMRGKHMCK
+NTLAILRAKTNFTFTDGKKSQSRDSVEFTVPQGSRNDRSKTIIDVMKEGSCKENESIALE
+IDRMVRTLDTIKLSLILCVLLWSPVFLGTLLRVYSCTRAPQWLTDVTFLSAILFGIVRNV
+LNVNIVRIQEACTDANAKDNRIQPV
+END
+    hits = [
+      new_hit_object.call('unnamed',398,1,200,6e-121,'SI2.2.0_09373',745),
+      new_hit_object.call('unnamed',398,225,398,3e-101,'SI2.2.0_09373',745),
+      new_hit_object.call('unnamed',398,260,310,0.008,'SI2.2.0_06144',491),
+    ]
+    b = Blast.blast_string_to_blast_archive('blastp', File.join(protein_db_dir, 'Sinvicta2-2-3.prot.subset.fasta'), q2)
+    actual_hits = b.convert_blast_archive_to_hit_objects('blast_formatter')
+    assert_equal hits.length, actual_hits.length, "Length of array difference - #{hits} expected, #{actual_hits} found"
+    hits.each_with_index do |hit, i|
+      assert hit==actual_hits[i]
+    end
+  end
+end
