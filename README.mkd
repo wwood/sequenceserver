@@ -140,7 +140,6 @@ Current contributors:
  (e.g. [ApiLoc][27]), as well as maintaining a general interest in protein and genome evolution.
  From January 2012 he will be in Queensland.
 
-
 [1]: http://blast.ncbi.nlm.nih.gov/Blast.cgi
 [2]: http://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download
 [3]: http://www.sinatrarb.com/
