@@ -255,13 +255,16 @@ module SequenceServer
       # log the command that was run
       settings.log.info('Ran to blast archive: ' + blast.command) if settings.logging
 
+      # Convert blast archive to a series of parsed Hit objects,
+      # so the graphics can be drawn
+      hits = blast.convert_blast_archive_to_hit_objects(settings.binaries['blast_formatter'])
+
       # convert blast archive to HTML version
       blast.convert_blast_archive_to_html_result(settings.binaries['blast_formatter'])
       # log the command that was run
       settings.log.info('Ran to get HTML output: ' + blast.command) if settings.logging
-
-      @blast = format_blast_results(blast.result, databases)
-
+      @blast = format_blast_results(blast.result, databases, hits)
+  
       erb :search
     end
 
@@ -315,7 +318,7 @@ module SequenceServer
       return sequence
     end
 
-    def format_blast_results(result, databases)
+    def format_blast_results(result, databases, hits)
       raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if !result.class == String
       raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if result.empty?
 
@@ -329,6 +332,8 @@ module SequenceServer
       finished_alignments = false
       reference_string = ''
       database_summary_string = ''
+      length_parsed = false
+      current_query_id = nil
       result.each do |line|
         line_number += 1
         next if line_number <= 5 #skip the first 5 lines
@@ -364,11 +369,18 @@ module SequenceServer
         else
           # Surround each query's result in <div> tags so they can be coloured by CSS
           if matches = line.match(/^<b>Query=<\/b> (.*)/) # If starting a new query, then surround in new <div> tag, and finish the last one off
-            line = "<div class=result_even_#{blast_database_number.even?}>\n<h3>Query: #{matches[1]}</h3>"
+            current_query_id = matches[1]
+            line = "<div class=result_even_#{blast_database_number.even?}>\n<h3>Query: #{current_query_id}</h3>"
             unless blast_database_number == 0
               line = "</div>\n#{line}"
             end
             blast_database_number += 1
+            length_parsed = false
+          elsif !length_parsed and matches = line.match(/Length=(\d+)/)
+            query_length = matches[1].to_i
+            # Add blast graphics for overview of all the hits, remove the pertaining hits from the hits array
+            line += format_query_graphical_overview(current_query_id, hits, query_length)
+            length_parsed = true #Otherwise this matches the hits as well
           elsif line.match(/^  Database: /) and !finished_alignments
             formatted_result += "</div>\n#{database_summary_string}\n"
             finished_alignments = true
@@ -432,6 +444,47 @@ module SequenceServer
         return "><a href='#{link}'>#{sequence_id}</a> \n"
       end
 
+    end
+    
+    # Given a query_id and an Array of SequenceServer::Blast::Hit objects
+    # create a graphic, and remove the hits from the array that pertain
+    # to the hit.
+    #
+    # TODO for blast graphic2 branch 
+    #* thinner gene sizes, particularly when there is many hits
+    #* add hyperlinks to the specific query results
+    #* make the different frames different colours for blastx, tblastn and tblastx
+    #* check for the possible bug where there is no hits for the first sequence (hits won't be returned in the blast_formatter ryo response)
+    #* check for bug where the query_id doesn't match the whole of the query name
+    def format_query_graphical_overview(query_id, hits, query_length)
+      # extract the hits for this query from the entire hits array
+      pertinent_hits = []
+      hits.each_with_index do |hit,i|
+        next if hit.nil?
+        if hit.qseqid == query_id
+          pertinent_hits.push hit
+          hits[i] = nil
+        else
+          break
+        end
+      end
+      # Each canvas name should be unique
+      canvas_name = "canvas_#{rand(100000).round}"
+      # make the canvas height big enough to fit all the hits
+      canvas_height = 50+50*pertinent_hits.length
+      line = "<div id=\"container\"><canvas id=\"#{canvas_name}\" width='5000' height='#{canvas_height}'></canvas></div>\n"
+      # Hit instance_variables = [:qseqid, :qlen, :qstart, :qend, :evalue, :sseqid, :slen]
+      line += "<script>\nvar canvas = document.getElementById('#{canvas_name}');\n";
+      line += "chart1 = new Scribl(canvas, 650);\n"
+      # Force the canvas scale to not zoom in, as this isn't obvious enough for the casual user 
+      line += "chart1.scale.min=1;\n"
+      line += "chart1.scale.max=#{query_length};\n"
+      line += "chart1.scale.auto = false;" #don't want intelligent start and stops
+      # Add Genes      position, length, orientation
+      pertinent_hits.each_with_index do |hit, i|
+        line += "gene#{i} = chart1.addFeature( new Rect('hit',#{hit.qstart},#{hit.qend-hit.qstart},'+'));\n"
+      end
+      line += "chart1.draw();\n</script>\n"
     end
 
     at_exit { run! if $!.nil? and run? }
