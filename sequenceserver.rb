@@ -471,7 +471,7 @@ module SequenceServer
       # Each canvas name should be unique
       canvas_name = "canvas_#{rand(100000).round}"
       # make the canvas height big enough to fit all the hits
-      canvas_height = 50+50*pertinent_hits.length
+      canvas_height = 50+20*pertinent_hits.length
       line = "<div id=\"container\"><canvas id=\"#{canvas_name}\" width='5000' height='#{canvas_height}'></canvas></div>\n"
       # Hit instance_variables = [:qseqid, :qlen, :qstart, :qend, :evalue, :sseqid, :slen]
       line += "<script>\nvar canvas = document.getElementById('#{canvas_name}');\n";
@@ -480,6 +480,7 @@ module SequenceServer
       line += "chart1.scale.min=1;\n"
       line += "chart1.scale.max=#{query_length};\n"
       line += "chart1.scale.auto = false;" #don't want intelligent start and stops
+      line += "chart1.laneSizes = 18;\n" #use smaller than default track sizes by default.
       # Add Genes      position, length, orientation
       pertinent_hits.each_with_index do |hit, i|
         line += "gene#{i} = chart1.addFeature( new Rect('hit',#{hit.qstart},#{hit.qend-hit.qstart},'+'));\n"
