@@ -29,7 +29,7 @@ module SequenceServer
         
         blasturl = 'http://www.ncbi.nlm.nih.gov/blast/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download'
         binaries = {}
-        %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb|.each do |method|
+        %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb blast_formatter|.each do |method|
           path = File.join(bin, method) rescue method
           
           binaries[method] = path
