@@ -162,5 +162,6 @@ class GraphicsTester < Test::Unit::TestCase
     assert_equal 2, g.evalue_to_lane_size(0.1)
     assert_equal 6, g.evalue_to_lane_size(0.001)
     assert_equal g.evalue_to_lane_size(1e-50), g.evalue_to_lane_size(1e-51)
+    assert_equal g.evalue_to_lane_size(1e-50), g.evalue_to_lane_size(0.0)
   end
 end
