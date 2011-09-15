@@ -24,8 +24,14 @@ module SequenceServer
       end
       # Each canvas name should be unique
       canvas_name = "canvas_#{rand(100000).round}"
+      
       # make the canvas height big enough to fit all the hits
-      canvas_height = 50+20*pertinent_hits.length
+      canvas_height = 50
+      track_buffer = 2
+      pertinent_hits.each do |hit|
+        canvas_height += track_buffer+evalue_to_lane_size(hit.evalue)
+      end
+      
       line = "<div id=\"container\"><canvas id=\"#{canvas_name}\" width='5000' height='#{canvas_height}'></canvas></div>\n"
       # Hit instance_variables = [:qseqid, :qlen, :qstart, :qend, :evalue, :sseqid, :slen]
       line += "<script>\nvar canvas = document.getElementById('#{canvas_name}');\n";
@@ -33,11 +39,15 @@ module SequenceServer
       # Force the canvas scale to not zoom in, as this isn't obvious enough for the casual user 
       line += "chart1.scale.min=1;\n"
       line += "chart1.scale.max=#{query_length};\n"
-      line += "chart1.scale.auto = false;" #don't want intelligent start and stops
-      line += "chart1.laneSizes = 18;\n" #use smaller than default track sizes by default.
+      line += "chart1.scale.auto = false;\n" #don't want intelligent start and stops
+      line += "chart1.laneBuffer = 10;\n"
+      line += "chart1.trackBuffer = #{track_buffer};\n"
       # Add Genes      position, length, orientation
       pertinent_hits.each_with_index do |hit, i|
-        line += "gene#{i} = chart1.addFeature( new Rect('hit',#{hit.qstart},#{hit.qend-hit.qstart},'+'));\n"
+        $stderr.puts hit.inspect
+        line += "var lane#{i} = chart1.addTrack().addLane();\n"
+        line += "lane#{i}.height = #{evalue_to_lane_size(hit.evalue)};\n"
+        line += "gene#{i} = lane#{i}.addFeature( new Rect('hit',#{hit.qstart},#{hit.qend-hit.qstart},'+'));\n"
       end
       line += "chart1.draw();\n</script>\n"
     end
@@ -50,6 +60,7 @@ module SequenceServer
       min_evalue_negative_log = 1.0  #evalue 0.1
       max_evalue_negative_log = 50.0 #evalue 1e-50
       
+      evalue = 1e-99 if evalue == 0.0 # You can't log a zero
       neg_log = -Math.log10(evalue)
       if neg_log < min_evalue_negative_log
         return min_lane_size
