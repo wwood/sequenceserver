@@ -152,3 +152,15 @@ END
     end
   end
 end
+
+class GraphicsTester < Test::Unit::TestCase
+  include SequenceServer
+  
+  def test_evalue_to_lane_size
+    g = Graphic.new
+    assert_equal 2, g.evalue_to_lane_size(1)
+    assert_equal 2, g.evalue_to_lane_size(0.1)
+    assert_equal 6, g.evalue_to_lane_size(0.001)
+    assert_equal g.evalue_to_lane_size(1e-50), g.evalue_to_lane_size(1e-51)
+  end
+end

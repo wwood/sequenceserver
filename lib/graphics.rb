@@ -41,5 +41,23 @@ module SequenceServer
       end
       line += "chart1.draw();\n</script>\n"
     end
+
+    
+    # Given a Blast evalue, return the number of pixels that the
+    # lane should take up vertically
+    def evalue_to_lane_size(evalue)
+      min_lane_size = 2
+      min_evalue_negative_log = 1.0  #evalue 0.1
+      max_evalue_negative_log = 50.0 #evalue 1e-50
+      
+      neg_log = -Math.log10(evalue)
+      if neg_log < min_evalue_negative_log
+        return min_lane_size
+      elsif neg_log > max_evalue_negative_log
+        return (max_evalue_negative_log/min_evalue_negative_log).to_i*min_lane_size
+      else
+        return (neg_log/min_evalue_negative_log).to_i*min_lane_size
+      end
+    end
   end
 end
