@@ -47,14 +47,15 @@
 
 			
 			<div class='horizontal'>
+<!-- comment out nucleotide databases because there are none
 				<fieldset class="nucleotide rounded box databases">
 					<h2>Nucleotide databases</h2>
-					<!-- Database list is actually dynamically loaded -->
+					<!-- Database list is actually dynamically loaded --><!-- comment out nucleotide databases because there are none
 			  <%    settings.databases['nucleotide'].each_with_index do |db, i| %>
 			  <input type="checkbox" class="dbcheckbox" id="ndb<%=i%>" name="db[nucleotide][]" value="<%=i%>"/>
 			  <label for="ndb<%=i%>" class="dbdescription"><%= db.title or db.name %></label>
 			  <% end %>
-			  		</fieldset>
+			  		</fieldset>-->
 
 				<fieldset class="protein rounded box databases">
 					<h2>Protein databases</h2> 

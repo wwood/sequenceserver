@@ -123,13 +123,13 @@ fieldset {
 }
 
 .databases {
-	width       :46.5%;
+	/*width       :46.5%;*/ /* comment out because there is only protein databases, not nucleotide ones */
 }
 .nucleotide {
 	float    :left;
 }
 .protein {
-	float    : right;
+	/*float    : right;*/ /* comment out because there is only protein databases, not nucleotide ones */
 }
 
 .radiobutton{
