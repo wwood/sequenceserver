@@ -205,6 +205,7 @@ module SequenceServer
       erb :search
     end
 
+    # Respond to requests to parse form data (not actually run BLAST)
     post '/' do
       method        = params['method']
       db_type_param = params['db']
@@ -216,6 +217,16 @@ module SequenceServer
       if request.xhr?
         return (sequence && type_of_sequences(sequence)).to_s
       end
+    end
+    
+    # Run BLAST
+    post '/result' do
+      method        = params['method']
+      db_type_param = params['db']
+      sequence      = params[:sequence]
+
+      # evaluate empty sequence as nil, otherwise as fasta
+      sequence = sequence.empty? ? nil : to_fasta(sequence)
 
       # Raise ArgumentError if there is no database selected
       if db_type_param.nil?
@@ -270,7 +281,7 @@ module SequenceServer
 
       @blast = format_blast_results(blast.result, databases)
 
-      erb :search
+      erb :result, :layout => false
     end
 
     # get '/get_sequence/?id=sequence_ids&db=retreival_databases'

@@ -38,6 +38,25 @@
     };
 })( jQuery );
 
+
+// Submit BLAST queries by AJAX
+$(function() {  
+  $(".submit_blast").click(function() {  
+  // validate and process form here (TODO)
+
+    var dataString = $("#input").serialize();
+    $.ajax({  
+        type: "POST",  
+        url: "/result",  
+        data: dataString,  
+        success: function(um) {  
+            $('#blast_result').html(um);
+        }  
+    });  
+    return false;  
+  });  
+});
+
 $(document).ready(function(){
     var prev_seq = prev_seq_type = '';
 
