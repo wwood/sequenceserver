@@ -1,166 +1,141 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xml:lang="en" lang="en" xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <title>SequenceServer</title>
-  <meta name="author" content="Anurag Priyam" />
-  <meta name="author" content="Ben J. Woodcroft" />
-  <meta name="author" content="Yannick Wurm" />
-  <meta name="author" content="Cedric Wurm" />
-  <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"/>
-  <script type="text/javascript" src=<%= uri('/js/jquery.js') %>></script>
-  <script type="text/javascript" src=<%= uri('/js/jquery.enablePlaceholder.min.js') %>></script>
-  <script type="text/javascript" src=<%= uri('/js/search.js') %>></script>
+  <head>
+    <title>SequenceServer</title>
+    <meta name="author" content="Anurag Priyam" />
+    <meta name="author" content="Ben J. Woodcroft" />
+    <meta name="author" content="Yannick Wurm" />
+    <meta name="author" content="Cedric Wurm" />
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type"/>
+    <script type="text/javascript" src=
+<%= uri('/js/jquery.js') %>></script>
+    <script type="text/javascript" src=
+<%= uri('/js/jquery.enablePlaceholder.min.js') %>></script>
+    <script type="text/javascript" src=
+<%= uri('/js/search.js') %>></script>
+    <%# without a space after erb's closing tag, a / gets appended to css' path %>
+    <link rel="stylesheet" href="http://twitter.github.com/bootstrap/1.3.0/bootstrap.min.css">
+    <link rel="stylesheet" media="screen" type="text/css" href=<%= uri('/css/beige.css') %> />
+    <style type="text/css">
+/* Override some defaults */
+html, body {
+background-color: #2B3E42;
+}
+body {
+padding-top: 40px; /* 40px to make the container go all the way to the bottom of the topbar */
+}
+.container {
+/*width: 820px; /* downsize our container to make the content feel a bit tighter and more cohesive. NOTE: this removes two full columns from the grid, meaning you only go to 14 columns and not 16. */
+}
+/* The white background content wrapper */
+.content {
+background-color: #fff;
+border-top-left-radius: 10px;
+border-top-right-radius: 10px;
+border-bottom-left-radius: 10px;
+border-bottom-right-radius: 10px;
+padding: 20px;
+margin: 0 -20px; /* negative indent the amount of the padding to maintain the grid system */
+font-family: Tahoma, Arial, sans-serif;
+font-size: 16;
+}
 
-  <%# without a space after erb's closing tag, a / gets appended to css' path %>
-  <link rel="stylesheet" media="screen" type="text/css" href=<%= uri('/css/beige.css') %> />
-</head>
-
-<body>
-  <div class="container">
-    <h1 class="banner">BLAST Sequence(s)</h1>
-    <form method="post" action=<%= uri('/#result') %> id="input">
-      <div class="horizontal">
-        <div class="entryfield">
-          <textarea name="sequence" id="sequence" rows="11" cols="" placeholder="Paste your sequence(s) here..." ></textarea>
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="content">
+        <div class="page-header">
+          <h1>BLAST Sequence(s)</h1>
         </div>
-        <fieldset class="blastmethods box" name="method">
-          <div>
-            <input type="radio" name="method" value="blastp" id="blastp" class="radiobutton" title="Protein query; protein database."/>
-            <label for="blastp" title="Protein query; protein database.">blastp</label>
+        <div class="row">
+          <div class="span12">
+            <div class="entryfield box rounded">
+              <form method="post" action=<%= uri('/#result') %> id="input">
+              	<div class="normal">
+                <textarea name="sequence" rows="11" id="sequence" placeholder="Paste your sequence(s) here..." ></textarea>
+                </div>
+            </div>
           </div>
-          <div class="clear">
-            <input type="radio" name="method" value="tblastn" id="tblastn" class="radiobutton" title="Protein query; six-frame translated nucleotide database." />
-            <label for="tblastn" title="Protein query; six-frame translated nucleotide database.">tblastn</label>
+          <div class="span3 box rounded blastmethods">
+            <div class="input">
+            	<div class="normal">
+              <ul class="inputs-list">
+                <li>
+                  <label>
+                    <input type="radio" name="method" value="blastp" id="blastp" title="Protein query; six-frame translated nucleotide database." />
+                    <span>blastp</span></label>
+                </li>
+                <li>
+                  <label>
+                    <input type="radio" name="method" value="tblastn" id="tblastn" title="Protein query; six-frame translated nucleotide database." />
+                    <span>tblastn</span></label>
+                </li>
+                <li>
+                  <label>
+                    <input type="radio" name="method" value="blastn" id="blastn" title="Nucleotide query; nucleotide database." />
+                    <span>blastn</span></label>
+                </li>
+                <li>
+                  <label>
+                    <input type="radio" name="method" value="blastx" id="blastx" title="Translated nucleotide query; protein database." />
+                    <span>blastx</span></label>
+                </li>
+                <li>
+                  <label>
+                    <input type="radio" name="method" value="tblastx" id="tblastx" title="Six-frame translated nucleotide query; six-frame translated nucleotide database" />
+                    <span>tblastx</span></label>
+                </li>
+              </ul>
+            </div>
           </div>
-          <div class="clear">
-            <input type="radio" name="method" value="blastn" id="blastn" class="radiobutton" title="Nucleotide query; nucleotide database."/>
-            <label for="blastn" title="Nucleotide query; nucleotide database.">blastn</label>
           </div>
-          <div class="clear">
-            <input type="radio" name="method" value="blastx" id="blastx" class="radiobutton" title="Translated nucleotide query; protein database."/>
-            <label for="blastx" title="Six-frame translated nucleotide query; protein database.">blastx</label>
+        </div>
+        <!-- databases -->
+        <div class='row'>
+          <div class="span7 box rounded">
+            <h2>Nucleotide databases</h2>
+            <div class="input normal">
+              <ul class="inputs-list">
+                <!-- Database list is actually dynamically loaded -->
+                <%    settings.databases['nucleotide'].each_with_index do |db, i| %>
+                <li>
+                  <label>
+                    <input type="checkbox" id="ndb<%= i%>" name="db[nucleotide][]" value="<%= i%>" />
+                    <span><%= db.title or db.name %></span> </label>
+                </li>
+                <% end %>
+              </ul>
+            </div>
           </div>
-          <div class="clear">
-            <input type="radio" name="method" value="tblastx" id="tblastx" class="radiobutton" title="Six-frame translated nucleotide query; six-frame translated nucleotide database"/>
-            <label for="tblastx" title="Six-frame translated nucleotide query; six-frame translated nucleotide database">tblastx</label>
+          <div class="span7 box rounded normal">
+            <h2>Protein databases</h2>
+            <div class="input">
+              <ul class="inputs-list">
+                <!-- Database list is actually dynamically loaded -->
+                <%    settings.databases['protein'].each_with_index do |db, i| %>
+                <li>
+                  <label>
+                    <input type="checkbox" id="pdb<%= i%>" name="db[protein][]" value="<%= i%>" />
+                    <span class="large"><%= db.title or db.name %></span> </label>
+                </li>
+                <% end %>
+              </ul>
+            </div>
           </div>
-        </fieldset>
-      </div>
-
-
-      <div class='horizontal'>
-        <fieldset class="nucleotide rounded box databases">
-          <h2>Nucleotide databases</h2>
-          <!-- Database list is actually dynamically loaded -->
-          <%    settings.databases['nucleotide'].each_with_index do |db, i| %>
-            <input type="checkbox" class="dbcheckbox" id="ndb<%=i%>" name="db[nucleotide][]" value="<%=i%>"/>
-            <label for="ndb<%=i%>" class="dbdescription"><%= db.title or db.name %></label>
-          <% end %>
-        </fieldset>
-
-        <fieldset class="protein rounded box databases">
-          <h2>Protein databases</h2>
-          <!--  Database list is actually dynamically loaded-->
-          <% settings.databases['protein'].each_with_index do |db, i| %>
-            <input type="checkbox" class="dbcheckbox" id="pdb<%=i%>" name="db[protein][]" value="<%=i%>"/>
-            <label for="pdb<%=i%>" class="dbdescription"><%= db.title or db.name %></label>
-          <% end %>
-        </fieldset>
-      </div>
-
-      <div class="horizontal">
-        <fieldset class="advanced box rounded">
-          <span class="bigtext pointer" title="Click to show/hide advanced options.">Advanced parameters:</span>
-          <input type="text" name="advanced" id="advanced" title="View, and enter advanced parameters." placeholder="eg: -evalue 1.0e-5 -num_alignments 100"/>
-
-<pre class="smalltext">
-<%= ERB::Util.h %q|
--evalue <Real>
-   Expectation value (E) threshold for saving hits
-   Default = `10'
- -word_size <Integer, >=2>
-   Word size for wordfinder algorithm
- -gapopen <Integer>
-   Cost to open a gap
- -gapextend <Integer>
-   Cost to extend a gap
- -matrix <String>
-   Scoring matrix name (normally BLOSUM62)
- -threshold <Real, >=0>
-   Minimum word score such that the word is added to the BLAST lookup table
- -comp_based_stats <String>
-   Use composition-based statistics for blastp / tblastn:
-       D or d: default (equivalent to 2)
-       0 or F or f: no composition-based statistics
-       1: Composition-based statistics as in NAR 29:2994-3005, 2001
-       2 or T or t : Composition-based score adjustment as in Bioinformatics
-   21:902-911,
-       2005, conditioned on sequence properties
-       3: Composition-based score adjustment as in Bioinformatics 21:902-911,
-       2005, unconditionally
-   For programs other than tblastn, must either be absent or be D, F or 0
-   Default = `2'
- -num_descriptions <Integer, >=0>
-   Number of database sequences to show one-line descriptions for
-   Default = `500'
- -num_alignments <Integer, >=0>
-   Number of database sequences to show alignments for
-   Default = `250'
- *** Query filtering options
- -seg <String>
-   Filter query sequence with SEG (Format: 'yes', 'window locut hicut', or
-   'no' to disable)
-   Default = `no'
- -soft_masking <Boolean>
-   Apply filtering locations as soft masks
-   Default = `false'
- -lcase_masking
-   Use lower case filtering in query and subject sequence(s)?
- *** Restrict search or results
- -gilist <String>
-   Restrict search of database to list of GI's
-    * Incompatible with:  negative_gilist, seqidlist, remote, subject,
-   subject_loc
- -seqidlist <String>
-   Restrict search of database to list of SeqId's
-    * Incompatible with:  gilist, negative_gilist, remote, subject,
-   subject_loc
- -negative_gilist <String>
-   Restrict search of database to everything except the listed GIs
-    * Incompatible with:  gilist, seqidlist, remote, subject, subject_loc
- -entrez_query <String>
-   Restrict search with the given Entrez query
-    * Requires:  remote
- -db_soft_mask <String>
-   Filtering algorithm ID to apply to the BLAST database as soft masking
-    * Incompatible with:  subject, subject_loc
- -culling_limit <Integer, >=0>
-   If the query range of a hit is enveloped by that of at least this many
-   higher-scoring hits, delete the hit
-    * Incompatible with:  best_hit_overhang, best_hit_score_edge
- -best_hit_overhang <Real, (>0 and <0.5)>
-   Best Hit algorithm overhang value (recommended value: 0.1)
-    * Incompatible with:  culling_limit
- -best_hit_score_edge <Real, (>0 and <0.5)>
-   Best Hit algorithm score edge value (recommended value: 0.1)
-    * Incompatible with:  culling_limit
- -max_target_seqs <Integer, >=1>
-   Maximum number of aligned sequences to keep | %>
-</pre>
-
-        </fieldset>
-        <div class="submit_button">
-          <input type="submit" class="submit_blast" value="BLAST!"/>
+        </div>
+      <!-- advanced options -->
+      <div class='row'>
+        <div class="span12 advanced box rounded">
+          <span title="Click to show/hide advanced options."><strong>Advanced parameters:</strong></span>
+          <input type="text" class="span8" name="advanced" id="advanced" title="View, and enter advanced parameters." placeholder="eg: -evalue 1.0e-5 -num_alignments 100"/>
+        </div>
+        <div class="span2">
+          <input type="submit" class="btn large primary" value="BLAST!"/>
         </div>
       </div>
-    </form>
-    <div class="result prepend-top">
-      <pre class='smalltext'> <div id="blast_result"></div> </pre>
+      </div>
     </div>
-    <div class ="underbar">
-      <p>&copy; <a href='http://www.sequenceserver.com'>sequenceserver.com</a></p>
-    </div>
-  </div>
-</body>
+  </body>
 </html>
