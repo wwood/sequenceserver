@@ -44,11 +44,9 @@ module SequenceServer
             " to blast's bin directory."
           else
             # Incompatible blast version detected
-            raise IOError, ["SequenceServer requires BLAST+ version",
-               "#{min_version} or above, but version #{version_agreement} was found",
-               "when using #{method}.",
-               "You may need to install BLAST+ from #{blasturl}. And/or point", 
-               "your sequenceserver config file to blast's bin directory."].join(' ')
+            raise IOError, "Could not find blast binaries." +
+            "\n\nYou may need to download BLAST+ from #{blasturl}." +
+            " And/or edit #{settings.config_file} to indicate the location of BLAST+ binaries."
           end
         end
         
