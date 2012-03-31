@@ -1,4 +1,3 @@
-require 'lib/database'
 require 'open3'
 require 'sequenceserver/database'
 
