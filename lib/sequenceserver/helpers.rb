@@ -1,4 +1,4 @@
-require 'lib/database'
+require 'sequenceserver/database'
 
 module SequenceServer
   module Helpers
@@ -26,15 +26,15 @@ module SequenceServer
         end
 
         binaries = {}
-        %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb|.each do |method|
+        %w|blastn blastp blastx tblastn tblastx blastdbcmd makeblastdb blast_formatter|.each do |method|
           path = File.join(bin, method) rescue method
           if command?(path)
             binaries[method] = path
           else
             blasturl = 'http://www.ncbi.nlm.nih.gov/blast/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=Download'
-            raise IOError, "Could not find blast binaries. You may need to
-            install BLAST+ from #{blasturl}. And/or point config.yml to blast's
-            bin directory."
+            raise IOError, "Could not find blast binaries." +
+            "\n\nYou may need to download BLAST+ from #{blasturl}." +
+            " And/or edit #{settings.config_file} to indicate the location of BLAST+ binaries."
           end
         end
 
@@ -90,10 +90,18 @@ module SequenceServer
         db = {}
 
         db_list.each_line do |line|
+          next if line.empty?  # required for BLAST+ 2.2.22
           type, name, *title =  line.split(' ') 
           type = type.downcase
           name = name.freeze
           title = title.join(' ').freeze
+
+          # skip past all but alias file of a NCBI multi-part BLAST database
+          if name.match(/\/\w*[.]\d{2,}[.\w]*/)
+            log.info(%|Found a multi-part database volume at #{name} - ignoring it.|)
+            next
+          end
+
           #LOG.info("Found #{type} database: #{title} at #{name}")
           (db[type] ||= []) << Database.new(name, title)
         end

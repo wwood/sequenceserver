@@ -1,16 +1,14 @@
 # sequenceserver.rb
 
-$LOAD_PATH.unshift(File.dirname(__FILE__))
-
-require 'rubygems'
 require 'sinatra/base'
 require 'yaml'
 require 'logger'
-require 'lib/helpers'
-require 'lib/blast.rb'
-require 'lib/sequencehelpers.rb'
-require 'lib/sinatralikeloggerformatter.rb'
-require 'customisation'
+require 'fileutils'
+require 'sequenceserver/helpers'
+require 'sequenceserver/blast'
+require 'sequenceserver/sequencehelpers'
+require 'sequenceserver/sinatralikeloggerformatter'
+require 'sequenceserver/customisation'
 
 # Helper module - initialize the blast server.
 module SequenceServer
@@ -24,17 +22,35 @@ module SequenceServer
       # enable some builtin goodies
       enable :session, :logging
 
-      # base setting; Sinatra can then figure :root, :public, and :views itself
-      set :app_file,   __FILE__
+      # main application file
+      set :app_file,   File.expand_path(__FILE__)
 
-      # run with builin server when invoked directly (ruby search.rb)
-      set :run,        Proc.new { app_file == $0 }
+      # app root is SequenceServer's installation directory
+      #
+      # SequenceServer figures out different settings, location of static
+      # assets or templates for example, based on app root.
+      set :root,       File.dirname(File.dirname(app_file))
 
-      set :log,        Proc.new { Logger.new(STDOUT) }
+      # path to test database
+      #
+      # SequenceServer ships with test database (fire ant genome) so users can
+      # launch and preview SequenceServer without any configuration, and/or run
+      # test suite.
+      set :test_database, File.join(root, 'tests', 'database')
+
+      # path to example configuration file
+      #
+      # SequenceServer ships with a dummy configuration file. Users can simply
+      # copy it and make necessary changes to get started.
+      set :example_config_file, File.join(root, 'example.config.yml')
+
+      # path to SequenceServer's configuration file
+      #
+      # The configuration file is a simple, YAML data store.
+      set :config_file, Proc.new{ File.expand_path('~/.sequenceserver.conf') }
+
+      set :log,        Proc.new { Logger.new(STDERR) }
       log.formatter = SinatraLikeLogFormatter.new()
-
-      set :environment, :development
-      #set :environment, :production
     end
 
     # Local, app configuration settings derived from config.yml.
@@ -42,10 +58,6 @@ module SequenceServer
     # A config.yml should contain the settings described in the following
     # configure block as key, value pairs. See example.config.yml in the
     # installation directory.
-    #
-    # The app looks for config.yml in the the current working directory.
-    # Sane defaults are assumed in the absence of a config.yml, or a
-    # corresponding entry.
     configure do
       # store the settings hash from config.yml; further configuration values
       # are derived from it
@@ -61,7 +73,7 @@ module SequenceServer
       #
       # As a default use 'database' directory relative to current working
       # directory of the running app.
-      set :database,    Proc.new{ File.expand_path((config['database'] or 'database')) }
+      set :database,    Proc.new{ File.expand_path(config['database']) rescue test_database }
 
       # the port number to run Sequence Server standalone
       set :port,        Proc.new{ (config['port'] or 4567).to_i }
@@ -143,7 +155,10 @@ module SequenceServer
       def quit!(server, handler_name)
         # Use Thin's hard #stop! if available, otherwise just #stop.
         server.respond_to?(:stop!) ? server.stop! : server.stop
-        puts "\n== Thank you for using SequenceServer :)." unless handler_name =~/cgi/i
+        puts "\n== Thank you for using SequenceServer :)." +
+             "\n== Please cite: " +
+             "\n==             Priyam A., Woodcroft B.J., Wurm Y (in prep)." +
+             "\n==             Sequenceserver: BLAST searching made easy." unless handler_name =~/cgi/i
       end
 
       # Initializes the blast server : executables, database. Exit if blast
@@ -152,6 +167,12 @@ module SequenceServer
       def init
         # first read the user supplied configuration options
         self.config = parse_config
+
+        # empty config file
+        unless config
+          log.warn("Empty configuration file: #{config_file} - will assume default settings")
+          self.config = {}
+        end
 
         # scan for blast binaries
         self.binaries = scan_blast_executables(bin).freeze
@@ -177,6 +198,12 @@ module SequenceServer
         log.fatal("Error in config.yml: #{error}")
         puts "YAML is white space sensitive. Is your config.yml properly indented?"
         exit
+      rescue Errno::ENOENT # config file not found
+        log.info('Configuration file not found')
+        FileUtils.cp(example_config_file, config_file)
+        log.info("Generated a dummy configuration file: #{config_file}")
+        puts "\nPlease edit #{config_file} to indicate the location of your BLAST databases and run SequenceServer again."
+        exit
       end
 
       # Parse config.yml, and return the resulting hash.
@@ -186,10 +213,7 @@ module SequenceServer
       # default configuration values. Any other error raised by YAML.load_file
       # is not rescued.
       def parse_config
-        return YAML.load_file( "config.yml" )
-      rescue Errno::ENOENT
-        log.warn("config.yml not found - will assume default settings")
-        return {}
+        YAML.load_file( config_file )
       end
     end
 
@@ -204,10 +228,6 @@ module SequenceServer
 
       # evaluate empty sequence as nil, otherwise as fasta
       sequence = sequence.empty? ? nil : to_fasta(sequence)
-
-      if request.xhr?
-        return (sequence && type_of_sequences(sequence)).to_s
-      end
 
       # Raise ArgumentError if there is no database selected
       if db_type_param.nil?
@@ -241,56 +261,96 @@ module SequenceServer
       Need #{allowed_db_type} database."
       end
 
+      advanced_opts = params['advanced']
+      validate_advanced_parameters(advanced_opts) #check the advanced options are sensible
+
+      # blastn implies blastn, not megablast; but let's not interfere if a user
+      # specifies `task` herself
+      if method == 'blastn' and not advanced_opts =~ /task/
+        advanced_opts << ' -task blastn '
+      end
+
       method = settings.binaries[ method ]
       settings.log.debug('settings.databases:   ' + settings.databases.inspect)
       databases = params['db'][db_type].map{|index|
         settings.databases[db_type][index.to_i].name
       }
-      advanced_opts = params['advanced']
 
-      raise ArgumentError, "Invalid advanced options" unless advanced_opts =~ /\A[a-z0-9\-_\. ']*\Z/i
-      raise ArgumentError, "using -out is not allowed" if advanced_opts =~ /-out/i
-
-      blast = Blast.blast_string(method, databases.join(' '), sequence, advanced_opts)
-
+      # run blast to blast archive
+      blast = Blast.blast_string_to_blast_archive(method, databases.join(' '), sequence, advanced_opts)
       # log the command that was run
-      settings.log.info('Ran: ' + blast.command) if settings.logging
+      settings.log.info('Ran to blast archive: ' + blast.command) if settings.logging
+
+      # convert blast archive to HTML version
+      blast.convert_blast_archive_to_html_result(settings.binaries['blast_formatter'])
+      # log the command that was run
+      settings.log.info('Ran to get HTML output: ' + blast.command) if settings.logging
 
       @blast = format_blast_results(blast.result, databases)
+
+      if request.xhr?
+        return @blast
+      end
 
       erb :search
     end
 
-    #get '/get_sequence/:sequenceids/:retreival_databases' do # multiple seqs
-    # separated by whitespace... all other chars exist in identifiers
-    # I have the feeling you need to spat for multiple dbs... that sucks.
-    get '/get_sequence/:*/:*' do
-      params[ :sequenceids], params[ :retrieval_databases] = params["splat"]
-      sequenceids = params[ :sequenceids].split(/\s/).uniq  # in a multi-blast
+    # get '/get_sequence/?id=sequence_ids&db=retreival_databases'
+    #
+    # Use whitespace to separate entries in sequence_ids (all other chars exist
+    # in identifiers) and retreival_databases (we don't allow whitespace in a
+    # database's name, so it's safe).
+    get '/get_sequence/' do
+      sequenceids = params[:id].split(/\s/).uniq  # in a multi-blast
       # query some may have been found multiply
-      settings.log.info('Getting: ' + sequenceids.join(' ') + ' for ' + request.ip.to_s)
+      retrieval_databases = params[:db].split(/\s/)
+
+      settings.log.info("Looking for: '#{sequenceids.join(', ')}' in '#{retrieval_databases.join(', ')}'")
 
       # the results do not indicate which database a hit is from.
       # Thus if several databases were used for blasting, we must check them all
       # if it works, refactor with "inject" or "collect"?
       found_sequences     = ''
-      retrieval_databases = params[ :retrieval_databases ].split(/\s/)
-
-      raise ArgumentError, 'Nothing in params[ :retrieval_databases]. session info is lost?'  if retrieval_databases.nil?
 
       retrieval_databases.each do |database|     # we need to populate this session variable from the erb.
-        begin
-          found_sequences += sequence_from_blastdb(sequenceids, database)
-        rescue
-          settings.log.debug('None of the following sequences: '+ sequenceids.to_s + ' found in '+ database)
+        sequence = sequence_from_blastdb(sequenceids, database)
+        if sequence.empty?
+          settings.log.debug("'#{sequenceids.join(', ')}' not found in #{database}")
+        else
+          found_sequences += sequence
         end
       end
 
+      found_sequences_count = found_sequences.count('>')
+
+      out = ''
       # just in case, checking we found right number of sequences
-      if sequenceids.length != found_sequences.count('>')
-        raise IOError, 'Wrong number of sequences found. Expecting: ' + sequenceids.to_s + '. Found: "' + found_sequences + '"'
+      if found_sequences_count != sequenceids.length
+        out <<<<HEADER
+<h1>ERROR: incorrect number of sequences found.</h1>
+<p>Dear user,</p>
+
+<p><strong>We have found
+<em>#{found_sequences_count > sequenceids.length ? 'more' : 'less'}</em>
+sequence than expected.</strong></p>
+
+<p>This is likely due to a problem with how databases are formatted. 
+<strong>Please share this text with the person managing this website so 
+they can resolve the issue.</strong></p>
+
+<p> You requested #{sequenceids.length} sequence#{sequenceids.length > 1 ? 's' : ''}
+with the following identifiers: <code>#{sequenceids.join(', ')}</code>,
+from the following databases: <code>#{retrieval_databases.join(', ')}</code>.
+But we found #{found_sequences_count} sequence#{found_sequences_count> 1 ? 's' : ''}.
+</p>
+
+<p>If sequences were retrieved, you can find them below (but some may be incorrect, so be careful!).</p>
+<hr/>
+HEADER
       end
-      '<pre><code>' + found_sequences + '</pre></code>'
+
+      out << "<pre><code>#{found_sequences}</pre></code>"
+      out
     end
 
     # Ensure a '>sequence_identifier\n' at the start of a sequence.
@@ -315,25 +375,98 @@ module SequenceServer
       raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if !result.class == String
       raise ArgumentError, 'Problem: empty result! Maybe your query was invalid?' if result.empty?
 
-      formatted_result    = ''
+      formatted_result = ''
       @all_retrievable_ids = []
       string_of_used_databases = databases.join(' ')
+      blast_database_number = 0
+      line_number = 0
+      started_query = false
+      finished_database_summary = false
+      finished_alignments = false
+      reference_string = ''
+      database_summary_string = ''
       result.each do |line|
+        line_number += 1
+        next if line_number <= 5 #skip the first 5 lines
+
+        # Add the reference to the end, not the start, of the blast result
+        if line_number >= 7 and line_number <= 15
+          reference_string += line
+          next
+        end
+
+        if !finished_database_summary and line_number > 15
+          database_summary_string += line
+          finished_database_summary = true if line.match(/total letters/)
+          next
+        end
+
+        # Remove certain lines from the output
+        skipped_lines = [/^<\/BODY>/,/^<\/HTML>/,/^<\/PRE>/]
+        skip = false
+        skipped_lines.each do |skippy|
+        #  $stderr.puts "`#{line}' matches #{skippy}?"
+          if skippy.match(line)
+            skip = true
+         #   $stderr.puts 'yes'
+          else
+          #  $stderr.puts 'no'
+          end
+        end
+        next if skip
+
+        # Remove the javascript inclusion
+        line.gsub!(/^<script src=\"blastResult.js\"><\/script>/, '')
+
         if line.match(/^>/) # If line to possibly replace
-          formatted_result += construct_sequence_hyperlink_line(line, databases)
+          # Reposition the anchor to the end of the line, so that it both still works and
+          # doesn't interfere with the diagnostic space at the beginning of the line.
+          #
+          # There are two cases:
+          #
+          # database formatted _with_ -parse_seqids
+          line.gsub!(/^>(.+)(<a.*><\/a>)(.*)/, '>\1\3\2')
+          #
+          # database formatted _without_ -parse_seqids
+          line.gsub!(/^>(<a.*><\/a>)(.*)/, '>\2\1')
+
+          # get hit coordinates -- useful for linking to genome browsers
+          hit_length      = result[line_number..-1].index{|l| l =~ />lcl|Lambda/}
+          hit_coordinates = result[line_number, hit_length].grep(/Sbjct/).
+            map(&:split).map{|l| [l[1], l[-1]]}.flatten.map(&:to_i).minmax
+
+          # Create the hyperlink (if required)
+          formatted_result += construct_sequence_hyperlink_line(line, databases, hit_coordinates)
         else
+          # Surround each query's result in <div> tags so they can be coloured by CSS
+          if matches = line.match(/^<b>Query=<\/b> (.*)/) # If starting a new query, then surround in new <div> tag, and finish the last one off
+            line = "<div class=\"resultn\" id=\"#{matches[1]}\">\n<h3>Query= #{matches[1]}</h3><pre>"
+            unless blast_database_number == 0
+              line = "</pre></div>\n#{line}"
+            end
+            blast_database_number += 1
+          elsif line.match(/^  Database: /) and !finished_alignments
+            formatted_result += "</div>\n<pre>#{database_summary_string}\n\n"
+            finished_alignments = true
+          end
           formatted_result += line
         end
       end
+      formatted_result << "</pre>"
 
-      link_to_fasta_of_all = "/get_sequence/:#{@all_retrievable_ids.join(' ')}/:#{string_of_used_databases}"
+      link_to_fasta_of_all = "/get_sequence/?id=#{@all_retrievable_ids.join(' ')}&db=#{string_of_used_databases}"
       # #dbs must be sep by ' '
-      retrieval_text       = @all_retrievable_ids.empty? ? '' : "<p><a href='#{link_to_fasta_of_all}'>FASTA of #{@all_retrievable_ids.length} retrievable hit(s)</a></p>"
+      retrieval_text       = @all_retrievable_ids.empty? ? '' : "<a href='#{url(link_to_fasta_of_all)}'>FASTA of #{@all_retrievable_ids.length} retrievable hit(s)</a>"
 
-      retrieval_text + '<pre><code>' + formatted_result + '</pre></code>'  # should this be somehow put in a div?
+      "<h2>Results</h2>"+
+      retrieval_text +
+      "<br/><br/>" +
+      formatted_result +
+      "<br/>" +
+      "<pre>#{reference_string.strip}</pre>"
     end
 
-    def construct_sequence_hyperlink_line(line, databases)
+    def construct_sequence_hyperlink_line(line, databases, hit_coordinates)
       matches = line.match(/^>(.+)/)
       sequence_id = matches[1]
 
@@ -343,7 +476,8 @@ module SequenceServer
       # use that.
       options = {
         :sequence_id => sequence_id,
-        :databases => databases
+        :databases => databases,
+        :hit_coordinates => hit_coordinates
       }
 
       # First precedence: construct the whole line to be customised
@@ -372,11 +506,19 @@ module SequenceServer
         return line
       else
         settings.log.debug('Added link for: `'+ sequence_id +'\''+ link)
-        return "><a href='#{link}'>#{sequence_id}</a> \n"
+        return "><a href='#{url(link)}'>#{sequence_id}</a> \n"
       end
 
     end
 
-    at_exit { run! if $!.nil? and run? }
+    # Advanced options are specified by the user. Here they are checked for interference with SequenceServer operations.
+    # raise ArgumentError if an error has occurred, otherwise return without value
+    def validate_advanced_parameters(advanced_options)
+      raise ArgumentError, "Invalid characters detected in the advanced options" unless advanced_options =~ /\A[a-z0-9\-_\. ']*\Z/i
+      disallowed_options = %w(-out -html -outfmt -db -query)
+      disallowed_options.each do |o|
+        raise ArgumentError, "The advanced BLAST option \"#{o}\" is used internally by SequenceServer and so cannot be specified by the you" if advanced_options =~ /#{o}/i
+      end
+    end
   end
 end

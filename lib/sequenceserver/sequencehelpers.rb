@@ -83,18 +83,18 @@ module SequenceServer
       end
     end
 
-    def sequence_from_blastdb(identifiers, db)  # helpful when displaying parsed blast results
-      entries_to_get = identifiers           if identifiers.class == String
-      entries_to_get = identifiers.join(',') if identifiers.class == Array
-      raise ArgumentError, "No ids to fetch: #{identifiers.to_s}" if entries_to_get.empty?
+    def sequence_from_blastdb(ids, db)  # helpful when displaying parsed blast results
+      # we know how to handle an Array of ids
+      ids = ids.join(',') if ids.is_a? Array
 
-      sequences = %x|blastdbcmd -db #{db} -entry #{entries_to_get} 2>&1|
-      if sequences.include?("No valid entries to search") 
-        raise ArgumentError, "Cannot find ids: #{entries_to_get} in #{db}." +
-        "OR makeblastdb needs to be rerun with '-parse_seqids'"
-      end
+      # we don't know what to do if the arguments ain't String
+      raise TypeError unless ids.is_a? String and db.is_a? String
 
-      sequences.chomp + "\n"  # fastaformat in a string - not sure blastdbcmd includes newline
+      # query now!
+      #
+      # If `blastdbcmd` throws error, we assume sequence not found.
+      blastdbcmd = settings.binaries['blastdbcmd']
+      %x|#{blastdbcmd} -db #{db} -entry '#{ids}' 2> /dev/null|
     end
 
     # Given a sequence_id and databases, apply the default (standard)
@@ -108,7 +108,7 @@ module SequenceServer
         @all_retrievable_ids ||= []
         @all_retrievable_ids.push(id)
 
-        link = "/get_sequence/:#{id}/:#{options[:databases].join(' ')}" # several dbs... separate by ' '
+        link = "/get_sequence/?id=#{id}&db=#{options[:databases].join(' ')}" # several dbs... separate by ' '
         return link
       else
         # do nothing - link == nil means no link will be incorporated

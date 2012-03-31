@@ -1,0 +1,97 @@
+/* generic */
+html, body{
+  height: 100%;
+}
+
+.offset-left {
+  margin-left: 20px;
+}
+
+.offset-right {
+  margin-right: 20px;
+}
+
+.box {
+  background: #D5E1DD;
+  border-radius: 6px;
+  -moz-border-radius: 6px;
+}
+
+fieldset legend {
+  padding-left: 2%;
+}
+
+/* contextual */
+body {
+  background-color: #2B3E42;
+}
+
+.page {
+  background-color: white;
+  border-radius: 10px 10px 10px 10px;
+  margin: 50px 0px;
+}
+
+#banner {
+  background: #EBCD7B;
+  padding: 2%;
+  border-radius: 10px 10px 0px 0px;
+  text-align: center;
+}
+
+#sequence {
+  width: 680px;
+}
+
+.advanced label {
+  text-align: left;
+  padding: 0px;
+  width: auto;
+  cursor:pointer;
+}
+
+.advanced input {
+  margin: 1% 1%;
+}
+
+.advanced .help {
+  display: none;
+  margin: 0% 1% 1%;
+}
+
+#result{
+  border-radius: 6px;
+  -moz-border-radius: 6px;
+}
+
+.resultn{
+  background-color: #dfefe6;
+  margin: 18px 0px 18px 0px;
+  border-radius: 6px;
+  -moz-border-radius: 6px;
+  padding: 3%;
+  border: 1px solid transparent;
+}
+
+.focussed {
+  border: 1px solid black;
+}
+
+#underbar {
+  background: #EBCD7B;
+  padding: 1%;
+  border-radius: 0px 0px 10px 10px;
+  text-align: center;
+}
+
+.inputs-list {
+  padding-left: 3%;
+}
+
+.inputs-list li {
+  padding: 1%;
+}
+
+fieldset {
+  padding-top: 0;
+}

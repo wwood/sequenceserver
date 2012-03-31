@@ -1,17 +1,20 @@
-#!/usr/bin/env ruby
 # copyright yannick . wurm at unil . ch
 # Finds files, reads first char. if its '>', read 500 lines. Guess sequence type, ask user for title to format as blast database.
 
-require 'rubygems'
+# TODO: bring it under SequenceServer namespace
+# TODO: move the file to a 'command/' sub-directory (probably makes more sense if we have several subcommands)
+# TODO: needs more love (read refactoring) overall
+
 require 'ptools' # for File.binary?(file)
 require 'find'
 require 'logger'
+require 'optparse'
 require 'sequenceserver'
-require 'lib/helpers.rb'
-require 'lib/sequencehelpers.rb'
+require 'sequenceserver/helpers.rb'
+require 'sequenceserver/sequencehelpers.rb'
 
 LOG = Logger.new(STDOUT)
-
+LOG.level = Logger::INFO
 
 class DatabaseFormatter
     include SequenceServer
@@ -19,19 +22,38 @@ class DatabaseFormatter
     include SystemHelpers
     include SequenceHelpers
     
-    def init
+    attr_accessor :db_path
+
+    def initialize(db_path = nil)
       @app = SequenceServer::App
       @app.config = @app.parse_config
       @app.binaries = @app.scan_blast_executables(@app.bin).freeze
+
+      @db_path = (db_path or @app.database)
     end
 
-    def format_databases(db_path)
+    def format_databases
+      unless File.directory?(db_path)
+        LOG.fatal("Database directory #{db_path} not found. See './database_formatter --help' for instructions.")
+        exit
+      end
+
         formatted_dbs = %x|#{@app.binaries['blastdbcmd']} -recursive -list #{db_path} -list_outfmt "%f" 2>&1|.split("\n")
         commands = []
         Find.find(db_path) do |file|
-            next if File.directory?(file)
-            next if formatted_dbs.include?(file)
-            unless File.binary?(file)
+            LOG.debug("Assessing file #{file}..")
+            if File.directory?(file)
+              LOG.debug("Ignoring file #{file} since it is a directory")
+              next
+            end
+            if formatted_dbs.include?(file)
+              LOG.debug("Ignoring file #{file} since it is already a blast database")
+              next
+            end
+            if File.binary?(file)
+              LOG.debug("Ignoring file #{file} since it is a binary file, not plaintext as FASTA files are")
+              next
+            end
 
                 if probably_fasta?(file)
                     LOG.info("Found #{file}")
@@ -56,9 +78,9 @@ class DatabaseFormatter
                     else 
                         LOG.warn("Unable to guess sequence type for #{file}. Skipping") 
                     end
-
+                else
+                  LOG.debug("Ignoring file #{file} since it was not judged to be a FASTA file.")
                 end
-            end
         end
         LOG.info("Will now create DBs")
         if commands.empty?
@@ -121,18 +143,48 @@ class DatabaseFormatter
     end
 end
 
+OptionParser.new do |opts|
+  opts.banner =<<BANNER
 
+SUMMARY
 
-if ARGV.length == 1
-    db_path = ARGV[0]
-    LOG.info("running with #{db_path}")
-    if File.directory?(db_path) 
-        app = DatabaseFormatter.new()
-        app.init()
-        app.format_databases(db_path)
-    else
-        LOG.warn("Not running becuase #{db_path} is not a directory")
-    end
-else 
-    LOG.warn('Not running: give only one argument (directory)')
-end
+  prepare BLAST databases for SequenceServer
+
+USAGE
+
+  sequenceserver format-databases [--verbose] [blast_database_directory]
+
+  Example:
+
+    $ sequenceserver format-databases ~/db  # explicitly specify a database directory
+    $ sequenceserver format-databases      # use the database directory in config.yml
+
+DESCRIPTION
+
+  Recursively scan the given 'blast_database_directory' for BLAST databases and
+  formats them for use with SequenceServer.
+
+  It automagically detects the database type, and ignores non-db files and
+  pre-formatted databases. The 'parse_seqids' makeblastdb options is used.
+
+  'blast_database_directory' can be passed as a command line parameter or
+  through a configuration file by setting the 'database' key (the same option
+  used by SequenceServer). Configuration file will be checked only if the
+  command line parameter is missing.
+
+OPTIONS
+
+BANNER
+
+  opts.on_tail('-h', '--help', 'Show this message') do
+    puts opts
+    exit
+  end
+
+  opts.on('-v', '--verbose', 'Print lots of output') do
+    LOG.level = Logger::DEBUG
+  end
+end.parse!
+
+app = DatabaseFormatter.new(ARGV[0])
+app.format_databases
