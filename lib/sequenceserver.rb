@@ -319,7 +319,7 @@ module SequenceServer
         if sequence.empty?
           settings.log.debug("'#{sequenceids.join(', ')}' not found in #{database}")
         else
-          found_sequences += sequence
+          found_sequences += sequence.join
         end
       end
 
