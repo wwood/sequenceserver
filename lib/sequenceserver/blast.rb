@@ -48,7 +48,7 @@ module SequenceServer
     # Run blast everytime it is called. Returns the success
     # status - true, or false.
     def run!
-      @result, @error, status = execute(command)
+      @result, @error, status = SequenceServer::Command.execute(command)
 
       status == 0 and return @success = true
 
@@ -73,21 +73,5 @@ module SequenceServer
       @success
     end
 
-    private
-
-    # Execute a command and return its stdout, stderr, and exit status.
-    def execute(command)
-      rfile = Tempfile.new('sequenceserver_result')
-      efile = Tempfile.new('sequenceserver_error')
-      [rfile, efile].each {|file| file.close}
-
-      system("#{command} > #{rfile.path} 2> #{efile.path}")
-      status = $?.exitstatus
-
-      return File.readlines(rfile.path), File.readlines(efile.path), status
-    ensure
-      rfile.unlink
-      efile.unlink
-    end
   end
 end
