@@ -81,7 +81,7 @@ module SequenceServer
 
         sid = options[:sequence_id].gsub(/<\/?[^>]*>/, '') # strip html
         cid = sid[/^(\S+)\s*.*/, 1]                        # get id part
-        id  = cid.include?('|') ? cid.split('|')[1] : cid.split('|')[0]
+        id  = CGI.escape(cid)
         @all_retrievable_ids ||= []
         @all_retrievable_ids.push(id)
 
