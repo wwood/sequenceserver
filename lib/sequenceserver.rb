@@ -473,7 +473,7 @@ HEADER
       link = nil
 
       # Identify which database hit came from
-      original_seq_id = sequence_id[/\|[^\s]+/][1..-1]
+      original_seq_id = sequence_id.split(/\s/)[0]
       hit_database = databases.select{|db| !sequence_from_blastdb(original_seq_id, db).empty?}
 
       # If a custom sequence hyperlink method has been defined,
