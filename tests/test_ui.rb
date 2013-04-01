@@ -22,6 +22,10 @@ shared_examples_for 'a browser' do
     b.button(:id => 'method').text.should eq('BLAST')
     b.button(:id => 'method').enabled?.should eq(false)
 
+    # Sequence type notification should be hidden
+    b.div(:id => 'protein-sequence-notification').visible?.should eq(false)
+    b.div(:id => 'nucleotide-sequence-notification').visible?.should eq(false)
+
     # Pick a protein blast database
     b.checkbox(:value => 'b9a05001b93ca2587b447dacb9906f2a').set
     b.checkbox(:value => 'b9a05001b93ca2587b447dacb9906f2a').checked?.should eq(true)
@@ -34,7 +38,9 @@ shared_examples_for 'a browser' do
     b.button(:id => 'method').enabled?.should eq(false)
 
     # Give a sequence we know should hit
+    b.div(:id => 'protein-sequence-notification').visible?.should eq(false)
     b.textarea(:name => 'sequence').set 'YTLPPPPTKLYSAPISCRKNKTGHWMDDILSIKTGESCPVNNYLHSGFLA'
+    b.div(:id => 'protein-sequence-notification').visible?.should eq(true)
 
     #blast butn now active
     b.button(:id => 'method').text.should eq('BLASTP')
@@ -43,8 +49,12 @@ shared_examples_for 'a browser' do
     # Run the blast
     b.button(:id => 'method').click
 
+    # Wait a second. This is not optimal but eh for now.
+    # Can't think of a good way to work out when the blast is done
+    sleep 1
+
     # blast should have worked
-    b.div(:id => 'result').text.include?('FASTA of 11 retrievable').should eq(true)
+    b.div(:id => 'result').text.include?('FASTA of 11 retrievable').should eq(true), "error was '#{b.div(:id => 'error').text}'"
   end
 end
 
