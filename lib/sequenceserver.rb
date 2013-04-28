@@ -18,6 +18,9 @@ module SequenceServer
     include SequenceHelpers
     include SequenceServer::Customisation
 
+    # Default to production environment mode, not development mode
+    set :environment => 'production' if ENV['RACK_ENV'].nil? and settings.environment.nil?
+
     # Basic configuration settings for app.
     configure do
       # enable some builtin goodies
@@ -139,7 +142,7 @@ module SequenceServer
         url = "http://#{bind}:#{port}"
         puts "\n== Launched SequenceServer at: #{url}"
         puts "== Press CTRL + C to quit."
-        handler.run(self, :Host => bind, :Port => port, :Logger => Logger.new('/dev/null')) do |server|
+        handler.run(self, :Host => bind, :Port => port) do |server|
           [:INT, :TERM].each { |sig| trap(sig) { quit!(server, handler) } }
           set :running, true
 
@@ -259,10 +262,10 @@ module SequenceServer
       end
 
       # log params
-      settings.log.debug('method: '   + params[:method])
-      settings.log.debug('sequence: ' + params[:sequence])
-      settings.log.debug('database: ' + params[:databases].inspect)
-      settings.log.debug('advanced: ' + params[:advanced])
+      logger.debug('method: '   + params[:method]) if logger.debug?
+      logger.debug('sequence: ' + params[:sequence]) if logger.debug?
+      logger.debug('database: ' + params[:databases].inspect) if logger.debug?
+      logger.debug('advanced: ' + params[:advanced]) if logger.debug?
     end
 
     post '/' do
@@ -289,7 +292,7 @@ module SequenceServer
       # run blast and log
       blast = Blast.new(method, sequence, databases.join(' '), advanced_opts)
       blast.run!
-      settings.log.info('Ran: ' + blast.command)
+      logger.info('Ran: ' + blast.command) if logger.info?
 
       unless blast.success?
         halt *blast.error
@@ -308,7 +311,7 @@ module SequenceServer
       # query some may have been found multiply
       retrieval_databases = params[:db].split(/\s/)
 
-      settings.log.info("Looking for: '#{sequenceids.join(', ')}' in '#{retrieval_databases.join(', ')}'")
+      logger.debug("Looking for: '#{sequenceids.join(', ')}' in '#{retrieval_databases.join(', ')}'") if logger.debug?
 
       # the results do not indicate which database a hit is from.
       # Thus if several databases were used for blasting, we must check them all
@@ -318,7 +321,7 @@ module SequenceServer
       retrieval_databases.each do |database|     # we need to populate this session variable from the erb.
         sequence = sequence_from_blastdb(sequenceids, database)
         if sequence.empty?
-          settings.log.debug("'#{sequenceids.join(', ')}' not found in #{database}")
+          logger.debug("'#{sequenceids.join(', ')}' not found in #{database}") if logger.debug?
         else
           found_sequences += sequence
         end
@@ -337,8 +340,8 @@ module SequenceServer
 <em>#{found_sequences_count > sequenceids.length ? 'more' : 'less'}</em>
 sequence than expected.</strong></p>
 
-<p>This is likely due to a problem with how databases are formatted. 
-<strong>Please share this text with the person managing this website so 
+<p>This is likely due to a problem with how databases are formatted.
+<strong>Please share this text with the person managing this website so
 they can resolve the issue.</strong></p>
 
 <p> You requested #{sequenceids.length} sequence#{sequenceids.length > 1 ? 's' : ''}
@@ -482,7 +485,7 @@ HEADER
 
       # First precedence: construct the whole line to be customised
       if self.respond_to?(:construct_custom_sequence_hyperlinking_line)
-        settings.log.debug("Using custom hyperlinking line creator with sequence #{options.inspect}")
+        logger.debug("Using custom hyperlinking line creator with sequence #{options.inspect}") if logger.debug?
         link_line = construct_custom_sequence_hyperlinking_line(options)
         unless link_line.nil?
           return link_line
@@ -493,19 +496,19 @@ HEADER
       # whole line either wasn't defined, or returned nil
       # (indicating failure)
       if self.respond_to?(:construct_custom_sequence_hyperlink)
-        settings.log.debug("Using custom hyperlink creator with sequence #{options.inspect}")
+        logger.debug("Using custom hyperlink creator with sequence #{options.inspect}") if logger.debug?
         link = construct_custom_sequence_hyperlink(options)
       else
-        settings.log.debug("Using standard hyperlink creator with sequence `#{options.inspect}'")
+        logger.debug("Using standard hyperlink creator with sequence `#{options.inspect}'")
         link = construct_standard_sequence_hyperlink(options)
       end
 
       # Return the BLAST output line with the link in it
       if link.nil?
-        settings.log.debug('No link added link for: `'+ sequence_id +'\'')
+        logger.debug('No link added link for: `'+ sequence_id +'\'') if logger.debug?
         return line
       else
-        settings.log.debug('Added link for: `'+ sequence_id +'\''+ link)
+        logger.debug('Added link for: `'+ sequence_id +'\''+ link) if logger.debug?
         return "><a href='#{url(link)}'>#{sequence_id}</a> \n"
       end
 
