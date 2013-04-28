@@ -199,9 +199,15 @@ $(document).ready(function(){
         tgtMarker.removeClass('drop-target-hover');
         tgtMarker[0].dragActive = false;
     });
-    
+
 
     tgtMarker.on('drop', function(evt) {
+        // Clear anything leftover from the previously accepted dropped file, to prevent confusion
+        var textarea = $('#sequence');
+        textarea.val(""); //clear sequence text itself
+        var indicator = $('#drop-indicator');
+        indicator.hide(); // clear drag/drop header
+
         evt.stopPropagation();
         evt.preventDefault();
         tgtMarker.removeClass('drop-target-hover');
@@ -215,9 +221,11 @@ $(document).ready(function(){
                 var reader = new FileReader();
                 reader.onload = (function(file) {
                     return function(e) {
-                        if (/\s*>/.test(e.target.result)) {
+                        var putativeFastaText = e.target.result;
+                        // Query file must start with > (possibly after whitespace), or be entirely alphanumeric+whitespace
+                        if (/^\s*>/.test(putativeFastaText) || /^\s*[0-9A-Za-z\*]+[\s0-9A-Za-z\*]*$/.test(putativeFastaText)) {
                             var textarea = $('#sequence');
-                            textarea.val(e.target.result);
+                            textarea.val(putativeFastaText);
                             textarea[0].readOnly = true;
                             var indicator = $('#drop-indicator');
                             var indicator_t = $('#drop-indicator-text');
