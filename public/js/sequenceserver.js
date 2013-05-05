@@ -213,6 +213,7 @@ $(document).ready(function(){
         textarea.val(""); //clear sequence text itself
         var indicator = $('#drop-indicator');
         indicator.hide(); // clear drag/drop header
+        textarea[0].readOnly = false;
 
         evt.stopPropagation();
         evt.preventDefault();
