@@ -122,8 +122,8 @@ function positionDnDTarget() {
     var offset = seq.position();
     tgtMarker.css('left', offset.left-borderHeight/2);
     tgtMarker.css('top', offset.top-borderHeight/2);
-    /*tgtMarker.css('margin-left', seq.css('margin-left'));
-    tgtMarker.css('margin-right', seq.css('margin-right'));*/
+    tgtMarker.css('margin-left', seq.css('margin-left'));
+    tgtMarker.css('margin-right', seq.css('margin-right'));
 }
 
 function startDrag() {
@@ -183,6 +183,7 @@ $(document).ready(function(){
     //Timeout approach suggested at http://stackoverflow.com/questions/14392293/javascript-double-file-dragover-event-firing/14392772#14392772
     var withinQueryBox = false;
     tgtMarker.on('dragenter', function(evt) {
+        evt.preventDefault();
         withinQueryBox = true;
         setTimeout(function() { withinQueryBox = false; }, 0);
 
