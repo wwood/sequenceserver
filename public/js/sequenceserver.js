@@ -116,13 +116,14 @@ if (!SS) {
 function positionDnDTarget() {
     var tgtMarker = $('#dnd-target-marker');
     var seq = $('#sequence');
-    tgtMarker.height(seq.outerHeight());
-    tgtMarker.width(seq.outerWidth());
+    var borderHeight = 4;
+    tgtMarker.height(seq.outerHeight()-borderHeight);
+    tgtMarker.width(seq.outerWidth()-borderHeight);
     var offset = seq.position();
-    tgtMarker.css('left', offset.left);
-    tgtMarker.css('top', offset.top);
-    tgtMarker.css('margin-left', seq.css('margin-left'));
-    tgtMarker.css('margin-right', seq.css('margin-right'));
+    tgtMarker.css('left', offset.left-borderHeight/2);
+    tgtMarker.css('top', offset.top-borderHeight/2);
+    /*tgtMarker.css('margin-left', seq.css('margin-left'));
+    tgtMarker.css('margin-right', seq.css('margin-right'));*/
 }
 
 function startDrag() {
@@ -166,7 +167,6 @@ $(document).ready(function(){
     }
 
     // drag-and-drop code
-
     $('body').on('dragover', function(evt) {
         evt.stopPropagation();
         evt.preventDefault();
@@ -180,26 +180,26 @@ $(document).ready(function(){
     });
 
     var tgtMarker = $('#dnd-target-marker');
+    //Uses an approach suggested at http://stackoverflow.com/questions/14392293/javascript-double-file-dragover-event-firing/14392772#14392772
+    var withinQueryBox = false;
+    tgtMarker.on('dragenter', function(evt) {
+        withinQueryBox = true;
+        setTimeout(function() { withinQueryBox = false; }, 0);
 
-    tgtMarker.on('dragover', function(evt) {
-        evt.stopPropagation();
-        evt.preventDefault();
-        // Explicitly show this is a copy.
+        tgtMarker[0].dragActive = true;
         evt.originalEvent.dataTransfer.dropEffect = 'copy';
         tgtMarker.addClass('drop-target-hover');
-    });
-
-    tgtMarker.on('dragenter', function(evt) {
-        evt.stopPropagation();
-        evt.preventDefault();
-        tgtMarker[0].dragActive = true;
     })
-
-    tgtMarker.on('dragleave', function(evt) {
-        tgtMarker.removeClass('drop-target-hover');
-        tgtMarker[0].dragActive = false;
+    tgtMarker.on('dragover', function(evt) {
+        evt.preventDefault();
     });
-
+    tgtMarker.on('dragleave', function(evt) {
+      if (! withinQueryBox) {
+          $('#dnd-target-marker')[0].dragActive = false;
+          $(this).removeClass('drop-target-hover');
+      }
+      withinQueryBox = false;
+    });
 
     tgtMarker.on('drop', function(evt) {
         // Clear anything leftover from the previously accepted dropped file, to prevent confusion
