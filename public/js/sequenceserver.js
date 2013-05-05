@@ -180,7 +180,7 @@ $(document).ready(function(){
     });
 
     var tgtMarker = $('#dnd-target-marker');
-    //Uses an approach suggested at http://stackoverflow.com/questions/14392293/javascript-double-file-dragover-event-firing/14392772#14392772
+    //Timeout approach suggested at http://stackoverflow.com/questions/14392293/javascript-double-file-dragover-event-firing/14392772#14392772
     var withinQueryBox = false;
     tgtMarker.on('dragenter', function(evt) {
         withinQueryBox = true;
@@ -189,6 +189,12 @@ $(document).ready(function(){
         tgtMarker[0].dragActive = true;
         evt.originalEvent.dataTransfer.dropEffect = 'copy';
         tgtMarker.addClass('drop-target-hover');
+        var textarea = $('#sequence')
+        if (textarea.val().length > 0){
+          $('#dnd-target-marker-text').html('<span style="color:red" class=drag-drop-overwrite>Overwrite</span> existing query sequence file');
+        } else {
+          $('#dnd-target-marker-text').html('Drop query sequence file here');
+        }
     })
     tgtMarker.on('dragover', function(evt) {
         evt.preventDefault();
