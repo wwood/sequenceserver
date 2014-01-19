@@ -16,18 +16,18 @@ shared_examples_for 'a browser' do
     b.goto seqserv_url
 
     # Nucleotide database should be available
-    b.checkbox(:value => 'ed4250adc44601256f6bbbd4ab5cc80c').enabled?.should eq(true)
+    b.checkbox(:value => 'e205221dd32dc53ebfc9fb48cbdecd9e').enabled?.should eq(true)
 
     # First up the blast button should be disabled
     b.button(:id => 'method').text.should eq('BLAST')
     b.button(:id => 'method').enabled?.should eq(false)
 
     # Pick a protein blast database
-    b.checkbox(:value => 'b9a05001b93ca2587b447dacb9906f2a').set
-    b.checkbox(:value => 'b9a05001b93ca2587b447dacb9906f2a').checked?.should eq(true)
+    b.checkbox(:value => '6669b1c88665158621afc06407ce88ea').set
+    b.checkbox(:value => '6669b1c88665158621afc06407ce88ea').checked?.should eq(true)
 
     # nuc dbs now disabled
-    b.checkbox(:value => 'ed4250adc44601256f6bbbd4ab5cc80c').enabled?.should eq(false)
+    b.checkbox(:value => 'e205221dd32dc53ebfc9fb48cbdecd9e').enabled?.should eq(false)
 
     # The blast button should still be disabled
     b.button(:id => 'method').text.should eq('BLAST')
@@ -47,7 +47,8 @@ shared_examples_for 'a browser' do
     end
 
     # blast should have worked
-    b.div(:id => 'result').text.include?('FASTA of 11 retrievable').should eq(true)
+puts b.div(:id => 'result').text
+    b.div(:id => 'result').text.include?('Sequences producing significant alignments: ').should eq(true)
   end
 end
 
